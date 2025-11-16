@@ -43,9 +43,8 @@
             return $stmt->fetch(PDO::FETCH_ASSOC);
         }
 
-        public function insert_usuario($usu_nombre, $usu_apellido_paterno, $usu_apellido_materno, $rol_id, $dep_id, $area_id, $pue_id, $usu_usuario_inicio, $usu_contraseña_inicio, $usu_telefono, $usu_RFC, $usu_CURP, $usu_NSS, $usu_domicilio, $usu_edad, $usu_fecha_nacimiento, $fecha_ingreso_planta, $usu_foto) {
+        public function insert_usuario($usu_nombre, $usu_apellido_paterno, $usu_apellido_materno, $rol_id, $jefe_id, $dep_id, $area_id, $pue_id, $usu_usuario_inicio, $usu_contraseña_inicio, $usu_telefono, $usu_RFC, $usu_CURP, $usu_NSS, $usu_domicilio, $usu_edad, $usu_fecha_nacimiento, $fecha_ingreso_planta, $usu_foto) {
             $conectar = $this->conectar();
-
             // 1. Verificar unicidad (sin cambios)
             $sql_check = "SELECT usu_id FROM LS_USUARIOS WHERE usu_usuario_inicio = ? OR usu_RFC = ? OR usu_CURP = ? OR usu_NSS = ?";
             $stmt_check = $conectar->prepare($sql_check);
@@ -60,39 +59,40 @@
             }
 
             // 2. Insertar - Se añade fecha_ingreso_planta
-            $sql = "INSERT INTO LS_USUARIOS (usu_nombre, usu_apellido_paterno, usu_apellido_materno, rol_id, usu_departamento, usu_area, usu_puesto, usu_usuario_inicio, usu_contraseña_inicio, usu_telefono, usu_RFC, usu_CURP, usu_NSS, usu_domicilio, usu_edad, usu_fecha_nacimiento, fecha_ingreso_planta, usu_foto, usu_estado, fecha_creacion) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())";
-            
+            $sql = "INSERT INTO LS_USUARIOS (usu_nombre, usu_apellido_paterno, usu_apellido_materno, rol_id, jefe_id, usu_departamento, usu_area, usu_puesto, usu_usuario_inicio, usu_contraseña_inicio, usu_telefono, usu_RFC, usu_CURP, usu_NSS, usu_domicilio, usu_edad, usu_fecha_nacimiento, fecha_ingreso_planta, usu_foto, usu_estado, fecha_creacion) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NOW())";
+
             $stmt = $conectar->prepare($sql);
             $stmt->bindValue(1, $usu_nombre);
             $stmt->bindValue(2, $usu_apellido_paterno);
             $stmt->bindValue(3, $usu_apellido_materno);
             $stmt->bindValue(4, $rol_id, PDO::PARAM_INT);
-            $stmt->bindValue(5, $dep_id, PDO::PARAM_INT);
-            $stmt->bindValue(6, $area_id, PDO::PARAM_INT);
-            $stmt->bindValue(7, $pue_id, PDO::PARAM_INT);
-            $stmt->bindValue(8, $usu_usuario_inicio);
-            $stmt->bindValue(9, password_hash($usu_contraseña_inicio, PASSWORD_DEFAULT)); 
-            $stmt->bindValue(10, $usu_telefono);
-            $stmt->bindValue(11, $usu_RFC);
-            $stmt->bindValue(12, $usu_CURP);
-            $stmt->bindValue(13, $usu_NSS);
-            $stmt->bindValue(14, $usu_domicilio);
-            $stmt->bindValue(15, $usu_edad, PDO::PARAM_INT);
-            $stmt->bindValue(16, $usu_fecha_nacimiento);
-            $stmt->bindValue(17, $fecha_ingreso_planta); // NUEVO
-            $stmt->bindValue(18, $usu_foto);
+            $stmt->bindValue(5, $jefe_id, PDO::PARAM_INT);
+            $stmt->bindValue(6, $dep_id, PDO::PARAM_INT);
+            $stmt->bindValue(7, $area_id, PDO::PARAM_INT);
+            $stmt->bindValue(8, $pue_id, PDO::PARAM_INT);
+            $stmt->bindValue(9, $usu_usuario_inicio);
+            $stmt->bindValue(10, password_hash($usu_contraseña_inicio, PASSWORD_DEFAULT)); 
+            $stmt->bindValue(11, $usu_telefono);
+            $stmt->bindValue(12, $usu_RFC);
+            $stmt->bindValue(13, $usu_CURP);
+            $stmt->bindValue(14, $usu_NSS);
+            $stmt->bindValue(15, $usu_domicilio);
+            $stmt->bindValue(16, $usu_edad, PDO::PARAM_INT);
+            $stmt->bindValue(17, $usu_fecha_nacimiento);
+            $stmt->bindValue(18, $fecha_ingreso_planta); // NUEVO
+            $stmt->bindValue(19, $usu_foto);
             
             return $stmt->execute();
         }
 
-        public function update_usuario($usu_id, $usu_nombre, $usu_apellido_paterno, $usu_apellido_materno, $rol_id, $dep_id, $area_id, $pue_id, $usu_usuario_inicio, $usu_telefono, $usu_RFC, $usu_CURP, $usu_NSS, $usu_domicilio, $usu_edad, $usu_fecha_nacimiento, $fecha_ingreso_planta, $usu_foto) {
-            $conectar = $this->conectar();
+        public function update_usuario($usu_id, $usu_nombre, $usu_apellido_paterno, $usu_apellido_materno, $rol_id, $jefe_id, $dep_id, $area_id, $pue_id, $usu_usuario_inicio, $usu_telefono, $usu_RFC, $usu_CURP, $usu_NSS, $usu_domicilio, $usu_edad, $usu_fecha_nacimiento, $fecha_ingreso_planta, $usu_foto) {
+            $conectar = $this->conectar(); 
             
             // Se añade fecha_ingreso_planta al UPDATE
             $sql = "UPDATE LS_USUARIOS SET 
                         usu_nombre = ?, usu_apellido_paterno = ?, usu_apellido_materno = ?, rol_id = ?, 
-                        usu_departamento = ?, usu_area = ?, usu_puesto = ?, usu_usuario_inicio = ?, 
+                        jefe_id = ?, usu_departamento = ?, usu_area = ?, usu_puesto = ?, usu_usuario_inicio = ?, 
                         usu_telefono = ?, usu_RFC = ?, usu_CURP = ?, usu_NSS = ?, usu_domicilio = ?, 
                         usu_edad = ?, usu_fecha_nacimiento = ?, fecha_ingreso_planta = ?, usu_foto = ?, fecha_modificacion = NOW() 
                     WHERE usu_id = ?";
@@ -102,20 +102,21 @@
             $stmt->bindValue(2, $usu_apellido_paterno);
             $stmt->bindValue(3, $usu_apellido_materno);
             $stmt->bindValue(4, $rol_id, PDO::PARAM_INT);
-            $stmt->bindValue(5, $dep_id, PDO::PARAM_INT);
-            $stmt->bindValue(6, $area_id, PDO::PARAM_INT);
-            $stmt->bindValue(7, $pue_id, PDO::PARAM_INT);
-            $stmt->bindValue(8, $usu_usuario_inicio);
-            $stmt->bindValue(9, $usu_telefono);
-            $stmt->bindValue(10, $usu_RFC);
-            $stmt->bindValue(11, $usu_CURP);
-            $stmt->bindValue(12, $usu_NSS);
-            $stmt->bindValue(13, $usu_domicilio);
-            $stmt->bindValue(14, $usu_edad, PDO::PARAM_INT);
-            $stmt->bindValue(15, $usu_fecha_nacimiento);
-            $stmt->bindValue(16, $fecha_ingreso_planta); // NUEVO
-            $stmt->bindValue(17, $usu_foto);
-            $stmt->bindValue(18, $usu_id, PDO::PARAM_INT);
+            $stmt->bindValue(5, $jefe_id, PDO::PARAM_INT);
+            $stmt->bindValue(6, $dep_id, PDO::PARAM_INT);
+            $stmt->bindValue(7, $area_id, PDO::PARAM_INT);
+            $stmt->bindValue(8, $pue_id, PDO::PARAM_INT);
+            $stmt->bindValue(9, $usu_usuario_inicio);
+            $stmt->bindValue(10, $usu_telefono);
+            $stmt->bindValue(11, $usu_RFC);
+            $stmt->bindValue(12, $usu_CURP);
+            $stmt->bindValue(13, $usu_NSS);
+            $stmt->bindValue(14, $usu_domicilio);
+            $stmt->bindValue(15, $usu_edad, PDO::PARAM_INT);
+            $stmt->bindValue(16, $usu_fecha_nacimiento);
+            $stmt->bindValue(17, $fecha_ingreso_planta); // NUEVO
+            $stmt->bindValue(18, $usu_foto);
+            $stmt->bindValue(19, $usu_id, PDO::PARAM_INT);
             
             return $stmt->execute();
         }
@@ -147,5 +148,18 @@
             $stmt->bindValue(1, $usu_id, PDO::PARAM_INT);
             return $stmt->execute();
         }
+        
+        // Combo Jefes Directos
+        public function get_jefes_disponibles(): array {
+        $conectar = $this->conectar();
+        // Excluimos al usuario que está logueado y solo usuarios activos
+        $sql = "SELECT usu_id, usu_nombre, usu_apellido_paterno, usu_apellido_materno 
+                FROM LS_USUARIOS 
+                WHERE usu_estado = 1 
+                ORDER BY usu_apellido_paterno ASC";
+        $stmt = $conectar->prepare($sql);
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
     }
 ?>

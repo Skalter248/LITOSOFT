@@ -35,6 +35,18 @@ if (isset($_SESSION["rol_id"])) {
                             <span class="lbl">Gestión de Organización</span>
                         </a>
                     </li>
+                    <li class="blue-dirty">
+                        <a href="..\Vacaciones\">
+                            <span class="glyphicon glyphicon-object-align-right"></span>
+                            <span class="lbl">Solicitud de Vacaciones</span>
+                        </a>
+                    </li>
+                    <li class="blue-dirty">
+                        <a href="..\AprobacionVacaciones\">
+                            <span class="glyphicon glyphicon-object-align-right"></span>
+                            <span class="lbl">Aprobación de Vacaciones</span>
+                        </a>
+                    </li>
                 </ul>
             </nav>
         <?php
@@ -53,6 +65,12 @@ if (isset($_SESSION["rol_id"])) {
                     <a href="..\home\">
                         <span class="glyphicon glyphicon-th-large"></span>
                         <span class="lbl">Gestor de Módulos</span>
+                    </a>
+                </li>
+                <li class="blue-dirty">
+                    <a href="..\Vacaciones\">
+                        <span class="glyphicon glyphicon-object-align-right"></span>
+                        <span class="lbl">Solicitud de Vacaciones</span>
                     </a>
                 </li>
             </ul>

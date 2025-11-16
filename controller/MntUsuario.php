@@ -31,6 +31,7 @@
             $usu_apellido_paterno = $_POST["usu_apellido_paterno"];
             $usu_apellido_materno = $_POST["usu_apellido_materno"];
             $rol_id = (int)$_POST["rol_id"]; 
+            $jefe_id = isset($_POST["jefe_id"]) && !empty($_POST["jefe_id"]) ? (int)$_POST["jefe_id"] : NULL; // NUEVO CAMPO: Puede ser NULL si no tiene jefe
             $usu_usuario_inicio = $_POST["usu_usuario_inicio"];
             $usu_contraseña_inicio = $_POST["usu_contraseña_inicio"]; // Solo para INSERT
             $usu_telefono = $_POST["usu_telefono"];
@@ -71,20 +72,31 @@
                 if (empty($usu_contraseña_inicio)) { echo "La contraseña es obligatoria para nuevos usuarios."; exit(); }
                 
                 $resultado = $usuario->insert_usuario(
-                    $usu_nombre, $usu_apellido_paterno, $usu_apellido_materno, $rol_id, $dep_id, $area_id, $pue_id, 
+                    $usu_nombre, $usu_apellido_paterno, $usu_apellido_materno, $rol_id, $jefe_id, $dep_id, $area_id, $pue_id, // jefe_id añadido aquí
                     $usu_usuario_inicio, $usu_contraseña_inicio, $usu_telefono, $usu_RFC, $usu_CURP, $usu_NSS, 
-                    $usu_domicilio, $usu_edad, $usu_fecha_nacimiento, $fecha_ingreso_planta, $usu_foto_bd // NUEVO ARGUMENTO
+                    $usu_domicilio, $usu_edad, $usu_fecha_nacimiento, $fecha_ingreso_planta, $usu_foto_bd
                 );
 
                 echo ($resultado === false) ? "Error al guardar o el usuario/documento ya existe (Inicio, RFC, CURP o NSS)." : "ok";
             } else {
                 // UPDATE
                 $usuario->update_usuario(
-                    $usu_id, $usu_nombre, $usu_apellido_paterno, $usu_apellido_materno, $rol_id, $dep_id, $area_id, $pue_id, 
+                    $usu_id, $usu_nombre, $usu_apellido_paterno, $usu_apellido_materno, $rol_id, $jefe_id, $dep_id, $area_id, $pue_id, // jefe_id añadido aquí
                     $usu_usuario_inicio, $usu_telefono, $usu_RFC, $usu_CURP, $usu_NSS, $usu_domicilio, $usu_edad, 
-                    $usu_fecha_nacimiento, $fecha_ingreso_planta, $usu_foto_bd // NUEVO ARGUMENTO
+                    $usu_fecha_nacimiento, $fecha_ingreso_planta, $usu_foto_bd
                 );
                 echo "ok";
+            }
+            break;
+
+            case "select_jefes":
+            $datos = $usuario->get_jefes_disponibles();
+            echo '<option value="">Seleccione un Jefe Directo (Opcional)</option>';
+            if (is_array($datos) && count($datos) > 0) {
+                foreach ($datos as $row) {
+                    $nombre_completo = $row["usu_apellido_paterno"] . ' ' . $row["usu_apellido_materno"] . ', ' . $row["usu_nombre"];
+                    echo '<option value="' . $row["usu_id"] . '">' . $nombre_completo . '</option>';
+                }
             }
             break;
 

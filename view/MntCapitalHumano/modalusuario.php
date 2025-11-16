@@ -50,6 +50,14 @@
                                 <option value="">Seleccione Puesto</option>
                             </select></div></div>
                     </div>
+                    <div class="row">
+                        <div class="col-lg-12"> 
+                            <div class="form-group">
+                                <label>Jefe Directo</label>
+                                <select class="form-control" id="jefe_id" name="jefe_id"></select>
+                            </div>
+                        </div>
+                    </div>
                     
                     <div class="row">
                         <div class="col-lg-3"><div class="form-group"><label>Rol</label>

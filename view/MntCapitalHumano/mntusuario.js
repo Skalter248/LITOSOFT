@@ -15,6 +15,7 @@ $(document).ready(function() {
 
     // 2. Función para ABRIR MODAL de nuevo usuario (Configuración de INSERT)
     $('#btnNuevoUsuario').click(function(){
+        
         $('#modalUsuarioLabel').html('Nuevo Usuario');
         
         // Limpiar y resetear
@@ -22,6 +23,7 @@ $(document).ready(function() {
         $('#usu_id').val('');
         $('#usu_foto_actual').val('default.png');
         $('#foto_preview').html('');
+        cargarSelectJefes();
         cargarSelectsIniciales();
         $('#usu_area').html('<option value="">Seleccione Área</option>');
         $('#usu_puesto').html('<option value="">Seleccione Puesto</option>');
@@ -162,6 +164,9 @@ function editarUsuario(usu_id) {
         $('#usu_foto_actual').val(data.usu_foto);
         $('#foto_preview').html('<img src="' + foto_path + '" width="150" onerror="this.src=\'../../public/upload/fotos/default.png\'" />');
         
+        // Carga de campos del Jefe Directo
+        cargarSelectJefes(data.jefe_id);
+
         // Seleccionar Relaciones
         $('#rol_id').val(data.rol_id);
         $('#usu_departamento').val(data.usu_departamento);
@@ -279,4 +284,15 @@ function cargarSelectPuestos(area_id, selected_puesto_id = null) {
     } else {
         $('#usu_puesto').html('<option value="">Seleccione Puesto</option>');
     }
+}
+
+function cargarSelectJefes(jefe_id_seleccionado = '') {
+    $.post(ruta_controlador + 'select_jefes', function(data){
+        $('#jefe_id').html(data);
+        
+        // Si se proporcionó un ID, lo seleccionamos SOLO después de que el HTML haya sido cargado.
+        if (jefe_id_seleccionado) {
+            $('#jefe_id').val(jefe_id_seleccionado).trigger('change');
+        }
+    });
 }
