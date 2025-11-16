@@ -38,6 +38,9 @@
                         <li class="nav-item">
                             <a class="nav-link" href="#tab-puestos" role="tab" data-toggle="tab">Puestos</a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#tab-usuarios" role="tab" data-toggle="tab">Usuarios</a>
+                        </li>
                     </ul>
                 </div><div class="tab-content">
                     
@@ -88,10 +91,37 @@
                         </table>
                     </div>
 
-                </div></section></div></div><?php require_once("modalmantenimiento.php");?>
+                    <div role="tabpanel" class="tab-pane fade" id="tab-usuarios">
+                        <button type="button" id="btnNuevoUsuario" class="btn btn-primary">Nuevo Usuario</button>
+                        <table id="usuarios_data" class="display table table-striped table-bordered" cellspacing="0" width="100%">
+                            <thead>
+                                <tr>
+                                    <th>Foto</th>
+                                    <th>Nombre Completo</th>
+                                    <th>Usuario Inicio</th>
+                                    <th>Departamento</th>
+                                    <th>Área</th>
+                                    <th>Puesto</th>
+                                    <th>Rol</th>
+                                    <th>Teléfono</th>
+                                    <th>Estado</th>
+                                    <th>Fecha Creación</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+    <?php require_once("modalmantenimiento.php");?>
+    <?php require_once("modalusuario.php");?>
 
     <?php require_once("../MainJs/js.php");?>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script type="text/javascript" src="mntcapitalhumano.js"></script>
+    <script type="text/javascript" src="mntusuario.js"></script>
 </body>
 </html>

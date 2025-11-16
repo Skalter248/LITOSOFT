@@ -287,5 +287,43 @@
             $stmt->bindValue(1, $area_id);
             return $stmt->execute();
         }
+
+        /* ========================================================================= */
+        /* SELECTS PARA USUARIOS (USANDO ID)                                         */
+        /* ========================================================================= */
+        
+        // Obtener Áreas activas filtradas por ID de Departamento
+        public function get_areas_activas_por_departamento($dep_id) {
+            $conectar = $this->conectar();
+            $sql = "SELECT * FROM LS_AREAS 
+                    WHERE area_estatus = 'ACTIVO' AND dep_id = ?
+                    ORDER BY area_nombre ASC";
+            $stmt = $conectar->prepare($sql);
+            $stmt->bindValue(1, $dep_id, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+
+        // Obtener Puestos activos filtrados por ID de Área
+        public function get_puestos_activos_por_area($area_id) {
+            $conectar = $this->conectar();
+            $sql = "SELECT * FROM LS_PUESTOS 
+                    WHERE pue_estatus = 'ACTIVO' AND area_id = ?
+                    ORDER BY pue_nombre ASC";
+            $stmt = $conectar->prepare($sql);
+            $stmt->bindValue(1, $area_id, PDO::PARAM_INT);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+        
+        // Obtener todos los Roles
+        public function get_roles() {
+            $conectar = $this->conectar();
+            $sql = "SELECT * FROM LS_ROLES ORDER BY rol_nombre ASC";
+            $stmt = $conectar->prepare($sql);
+            $stmt->execute();
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+    
     }
 ?>
