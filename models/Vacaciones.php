@@ -7,12 +7,13 @@ class Vacaciones {
         return Conexion::conectar();
     }
 
-    public function insert_solicitud($usu_id, $vac_fecha_inicio, $vac_fecha_fin, $vac_dias_solicitados, $vac_dias_habiles) {
+    public function insert_solicitud($usu_id, $vac_fecha_inicio, $vac_fecha_fin, $vac_dias_solicitados, $vac_dias_habiles, $vac_justificacion_adelanto) {
         $conectar = $this->conectar();
         
-        $sql = "INSERT INTO LS_VACACIONES_SOLICITUDES 
-                (usu_id, vac_fecha_inicio, vac_fecha_fin, vac_dias_solicitados, vac_dias_habiles, vac_estado, vac_fecha_solicitud) 
-                VALUES (?, ?, ?, ?, ?, 'Pendiente', NOW())";
+        // Se añade vac_justificacion_adelanto a la lista de columnas y al VALUES
+        $sql = "INSERT INTO ls_vacaciones_solicitudes 
+                (usu_id, vac_fecha_inicio, vac_fecha_fin, vac_dias_solicitados, vac_dias_habiles, vac_estado, vac_justificacion_adelanto, vac_fecha_solicitud) 
+                VALUES (?, ?, ?, ?, ?, 'Pendiente', ?, NOW())";
         
         $stmt = $conectar->prepare($sql);
         $stmt->bindValue(1, $usu_id, PDO::PARAM_INT);
@@ -20,6 +21,7 @@ class Vacaciones {
         $stmt->bindValue(3, $vac_fecha_fin);
         $stmt->bindValue(4, $vac_dias_solicitados, PDO::PARAM_INT);
         $stmt->bindValue(5, $vac_dias_habiles, PDO::PARAM_INT);
+        $stmt->bindValue(6, $vac_justificacion_adelanto); // Nuevo parámetro
         
         return $stmt->execute();
     }
@@ -89,40 +91,110 @@ class Vacaciones {
      * @param string $fecha_ingreso_planta Fecha de ingreso del usuario (formato 'YYYY-MM-DD').
      * @return array {dias_generados, dias_usados, dias_disponibles, antiguedad_anos}
      */
-    public function get_resumen_vacaciones(int $usu_id, string $fecha_ingreso_planta): array {
-        $conectar = $this->conectar();
-        
-        // 1. Calcular Antigüedad en Años
-        $hoy = new DateTime();
-        $ingreso = new DateTime($fecha_ingreso_planta);
-        $antiguedad = $ingreso->diff($hoy);
-        $antiguedad_anos = $antiguedad->y;
-
-        // 2. Calcular Días Generados según LFT
-        $dias_generados = $this->get_dias_generados_por_antiguedad($antiguedad_anos);
-
-        // 3. Sumar Días Usados (Aprobados)
-        // Solo sumamos los días hábiles de solicitudes APROBADAS
-        $sql_usados = "SELECT SUM(vac_dias_habiles) AS dias_usados 
-                       FROM LS_VACACIONES_SOLICITUDES 
-                       WHERE usu_id = ? AND vac_estado = 'Aprobada'";
-        $stmt_usados = $conectar->prepare($sql_usados);
-        $stmt_usados->bindValue(1, $usu_id, PDO::PARAM_INT);
-        $stmt_usados->execute();
-        $resultado_usados = $stmt_usados->fetch(PDO::FETCH_ASSOC);
-        
-        $dias_usados = (int)($resultado_usados['dias_usados'] ?? 0);
-        
-        // 4. Calcular Días Disponibles
-        $dias_disponibles = max(0, $dias_generados - $dias_usados);
-
+    public function get_resumen_vacaciones($usu_id, $fecha_ingreso) {
+    $conectar = $this->conectar(); 
+    
+    // 1. CÁLCULO DE ANTIGÜEDAD y DÍAS GENERADOS (LFT 2023)
+    $fecha_actual = new \DateTime(); 
+    try {
+        $fecha_ingreso_dt = new \DateTime($fecha_ingreso); 
+    } catch (\Exception $e) {
         return [
-            'antiguedad_anos' => $antiguedad_anos,
-            'dias_generados' => $dias_generados,
-            'dias_usados' => $dias_usados,
-            'dias_disponibles' => $dias_disponibles
+            'antiguedad_anos' => 0, 'dias_generados' => 0, 'dias_usados' => 0, 
+            'dias_disponibles' => 0, 'dias_adelantados_usados' => 0, 
+            'motivo_restriccion' => 'Error: Fecha de ingreso inválida o no encontrada.'
         ];
     }
+
+    $diff = $fecha_ingreso_dt->diff($fecha_actual);
+    $antiguedad_anos = $diff->y; 
+    $dias_generados = 0;
+    
+    // Lógica de Días Generados LFT 2023
+    if ($antiguedad_anos >= 1) {
+        // Lógica para 1 año o más (Días por año completo)
+        if ($antiguedad_anos <= 5) {
+            $dias_generados = 10 + (2 * $antiguedad_anos); 
+        } elseif ($antiguedad_anos >= 6 && $antiguedad_anos <= 10) { 
+            $dias_generados = 22;
+        } elseif ($antiguedad_anos >= 11 && $antiguedad_anos <= 15) { 
+            $dias_generados = 24;
+        } elseif ($antiguedad_anos >= 16 && $antiguedad_anos <= 20) { 
+            $dias_generados = 26;
+        } elseif ($antiguedad_anos >= 21 && $antiguedad_anos <= 25) { 
+            $dias_generados = 28;
+        } elseif ($antiguedad_anos >= 26 && $antiguedad_anos <= 30) { 
+            $dias_generados = 30;
+        } else {
+            $dias_generados = 32; 
+        }
+    } elseif ($antiguedad_anos == 0) {
+        // Lógica de DÍAS PROPORCIONALES (Menos de 1 año)
+        // Calcula meses completos para asignar 1 día generado por mes (12 días / 12 meses)
+        $fecha_ingreso_temp = clone $fecha_ingreso_dt;
+        $meses_completos = 0;
+        // Contar el número de aniversarios mensuales completos
+        while ($fecha_ingreso_temp->modify('+1 month') <= $fecha_actual) {
+            $meses_completos++;
+        }
+        
+        // Se generan 1 día por cada mes completo
+        $dias_generados = $meses_completos;
+        
+    }
+    
+    // 2. CÁLCULO DE DÍAS USADOS Y ADELANTADOS
+    $sql_ocupados = "SELECT 
+                        SUM(vac_dias_habiles) as dias_ocupados,
+                        SUM(CASE 
+                                WHEN vac_justificacion_adelanto IS NOT NULL AND vac_estado = 'Aprobada' THEN vac_dias_habiles 
+                                ELSE 0 
+                             END) AS dias_adelantados_usados
+                     FROM 
+                        ls_vacaciones_solicitudes
+                     WHERE 
+                        usu_id = :usu_id AND vac_estado = 'Aprobada'";
+
+    $stmt_ocupados = $conectar->prepare($sql_ocupados);
+    $stmt_ocupados->bindValue(':usu_id', $usu_id, PDO::PARAM_INT); 
+    $stmt_ocupados->execute();
+    $dias_ocupados_data = $stmt_ocupados->fetch(PDO::FETCH_ASSOC);
+    
+    // Compatibilidad PHP 5.x
+    $dias_ocupados = (int)(isset($dias_ocupados_data['dias_ocupados']) ? $dias_ocupados_data['dias_ocupados'] : 0);
+    $dias_adelantados_usados = (int)(isset($dias_ocupados_data['dias_adelantados_usados']) ? $dias_ocupados_data['dias_adelantados_usados'] : 0);
+    
+    
+    // 3. CÁLCULO FINAL DE SALDO DISPONIBLE Y RESTRICCIÓN
+    // El saldo bruto se calcula con los días generados (proporcional o completo)
+    $dias_disponibles_bruto = $dias_generados - $dias_ocupados;
+    $dias_disponibles_uso = $dias_disponibles_bruto; // Saldo de la cuenta (Deuda o Generados)
+    $motivo_restriccion = "";
+
+    // Restricción LFT: El usuario no puede usar el saldo si tiene 0 años completos
+    if ($antiguedad_anos == 0) {
+        $fecha_primer_aniversario = (new \DateTime($fecha_ingreso))->modify('+1 year');
+        $motivo_restriccion = "Días restringidos: Requiere 1 año de antigüedad. Disponibles después de {$fecha_primer_aniversario->format('d/m/Y')}.";
+        
+        // Si el saldo es positivo (no tiene deuda), se fuerza a 0 por la LFT.
+        if ($dias_disponibles_bruto > 0) {
+            $dias_disponibles_uso = 0;
+        }
+        // Si el saldo es negativo (deuda por adelanto), se mantiene el valor negativo para el dashboard.
+        // Esto significa que si tiene -3, el dashboard mostrará -3.
+    }
+    
+    // 4. Devolver datos
+    return [
+        'antiguedad_anos' => $antiguedad_anos,
+        'dias_generados' => $dias_generados, // Muestra 6 días generados
+        'dias_usados' => $dias_ocupados, 
+        'dias_disponibles' => $dias_disponibles_uso, // Muestra 0 días disponibles (por la restricción)
+        'dias_adelantados_usados' => $dias_adelantados_usados,
+        'motivo_restriccion' => $motivo_restriccion,
+        'fecha_ingreso_planta' => date('d/m/Y', $fecha_ingreso_dt->getTimestamp())
+    ];
+}
     /**
      * Cancela una solicitud de vacaciones (solo si está pendiente).
      * @return PDOStatement|false Devuelve el objeto de la sentencia PDO si se ejecuta, o false si falla.
@@ -176,13 +248,11 @@ class Vacaciones {
         
         // Lógica para visibilidad: Si no es el Admin Global (usu_id=1), se aplica el filtro de jerarquía.
         if ($jefe_id != 1) { 
-            // Si NO es el admin, solo ve a sus subordinados.
             $where_parts[] = "u.jefe_id = :jefe_id";
         } 
-        // Si ES el admin global (ID 1), no se añade filtro de jefe_id (ve todas).
-
-        // CLÁUSULA CLAVE: Evitar la auto-aprobación. El solicitante (v.usu_id) no debe ser el jefe logueado.
+        // CLÁUSULA CLAVE DE EXCLUSIÓN:
         $where_parts[] = "v.usu_id != :id_excluir";
+        // .
         
         $where_clause = implode(' AND ', $where_parts);
         
@@ -233,6 +303,33 @@ class Vacaciones {
         } else {
              return false;
         }
+    }
+    /**
+     * Obtiene todos los detalles de una solicitud, incluyendo datos del solicitante y aprobador.
+     */
+    public function get_detalles_solicitud($vac_id) {
+        $conectar = $this->conectar();
+        
+        $sql = "SELECT 
+                    v.*, 
+                    us.usu_nombre AS nombre_solicitante,
+                    us.usu_apellido_paterno AS apellido_solicitante, /* Usamos apellido_paterno para el apellido */
+                    ua.usu_nombre AS nombre_aprobador,
+                    ua.usu_apellido_paterno AS apellido_aprobador,  /* Usamos apellido_paterno para el apellido */
+                    us.fecha_ingreso_planta
+                FROM 
+                    LS_VACACIONES_SOLICITUDES v
+                JOIN 
+                    ls_usuarios us ON v.usu_id = us.usu_id      /* <--- CORRECCIÓN CLAVE: ls_usuarios */
+                LEFT JOIN 
+                    ls_usuarios ua ON v.vac_jefe_id_aprobador = ua.usu_id /* <--- CORRECCIÓN CLAVE: ls_usuarios */
+                WHERE 
+                    v.vac_id = :vac_id";
+                    
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(':vac_id', $vac_id, PDO::PARAM_INT);
+        $stmt->execute();
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
 }

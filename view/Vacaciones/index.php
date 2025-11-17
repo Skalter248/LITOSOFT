@@ -1,3 +1,16 @@
+<div class="modal fade" id="modalCalendario" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-xl" role="document"> 
+        <div class="modal-content">
+            <div class="modal-body">
+                
+                <div id="calendar_container" class="mb-4"></div> 
+                
+                <hr>
+                
+                </div>
+        </div>
+    </div>
+</div>
 <?php
     // ARCHIVO: view/Vacaciones/index.php
     
@@ -18,37 +31,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
-    <title>Solicitud de Vacaciones | LITOSOFT</title>
+    <title>Solicitud de Vacaciones</title>
     <?php require_once("../headermodulos/headermodulos.php");?>
     <link rel="stylesheet" href="../../public/css/main.css">
+    <link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.0/main.min.css' rel='stylesheet' />
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.0/main.min.js'></script>
+    <script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.0/locales/es.js'></script>
+    
 </head>
 <body class="with-side-menu">
     
     <?php require_once("../headercapitalhumano/headercapitalhumano.php");?> 
     <?php require_once("../navcapitalhumano/nav.php");?> 
 
+    <input type="hidden" name="rol_id" id="rol_id" value="<?= $_SESSION['rol_id'] ?>">
+
     <div class="page-content">
         <div class="container-fluid">
             <header class="section-header">
                 <h2>Gestión de Vacaciones</h2>
                 <?php if ($rol_id == 1 || $rol_id == 2) : // 1: Admin, 2: Jefe (asumiendo roles) ?>
-                    <p class="text-info">Estás viendo la vista de administrador/jefe. Puedes aprobar solicitudes y ver el resumen.</p>
                 <?php endif; ?>
             </header>
 
             <section class="card">
                 <div class="card-header">
-                    <h3 class="card-title">📅 Resumen de Días de Vacaciones</h3>
+                    <h3 class="card-title">Resumen de Días de Vacaciones</h3>
                 </div>
                 <div class="card-block">
                     <div class="row">
-                        <div class="col-md-3">
+                        <div class="col-md-6">
                             <div class="color-card bg-primary text-white p-3 mb-3 text-center">
                                 <p class="m-0">Fecha de Ingreso</p>
                                 <h4 class="m-0" id="fecha_ingreso_planta_info">Calculando...</h4>
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-6">
                             <div class="color-card bg-info text-white p-3 mb-3 text-center">
                                 <p class="m-0">Antigüedad (Años)</p>
                                 <h4 class="m-0" id="antiguedad_anos">0</h4>
@@ -61,9 +79,24 @@
                             </div>
                         </div>
                         <div class="col-md-3">
+                            <div class="color-card bg-danger text-white p-3 mb-3 text-center">
+                                <p class="m-0">Días Ocupados</p>
+                                <h4 class="m-0" id="dias_usados">0</h4>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
                             <div class="color-card bg-warning text-white p-3 mb-3 text-center">
                                 <p class="m-0">Días Disponibles</p>
                                 <h4 class="m-0" id="dias_disponibles">0</h4>
+                                <p class="m-0 text-white" id="dias_adelantados_span_dashboard"></p>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="color-card bg-secondary text-white p-3 mb-3 text-center">
+                                <p class="m-0">Visualizar Solicitudes</p>
+                                <button type="button" class="btn btn-sm btn-light mt-1" id="btnVerCalendario">
+                                    <i class="fa fa-calendar-alt"></i> Ver Calendario
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -72,7 +105,7 @@
             
             <section class="card">
                 <div class="card-header">
-                    <h3 class="card-title">📝 Historial de Solicitudes</h3>
+                    <h3 class="card-title">Historial de Solicitudes</h3>
                 </div>
                 <div class="card-block">
                     <button type="button" id="btnNuevaSolicitud" class="btn btn-success mb-3">

@@ -16,7 +16,7 @@
                     <input type="hidden" name="vac_id" id="vac_id">
                     <input type="hidden" name="usu_id" id="usu_id" value="<?= $_SESSION['usu_id'] ?>">
                     
-                    <div class="alert alert-info" role="alert">
+                    <div class="alert alert-info" role="alert" id="alerta_info_disponibles">
                         Días disponibles: <strong id="dias_disponibles_modal">0</strong> días hábiles.
                     </div>
 
@@ -51,7 +51,16 @@
                     </div>
                     
                     <div class="alert alert-danger d-none" id="alerta_dias_insuficientes" role="alert">
-                        <strong>Alerta:</strong> La solicitud excede sus días disponibles. Solo puede solicitar hasta <span id="max_dias_permitidos">0</span> días hábiles.
+                        <strong>Error:</strong> La solicitud excede un límite no permitido de días.
+                    </div>
+                    
+                    <div class="alert alert-warning d-none" id="alerta_adelanto_dias" role="alert">
+                        <strong>¡Atención!</strong> Su solicitud excede el saldo disponible. La diferencia de días se registrará como un **adelanto** y requerirá una justificación para ser procesada.
+                    </div>
+
+                    <div class="form-group d-none" id="adelanto_justificacion_container">
+                        <label for="vac_justificacion_adelanto">Justificación del Adelanto</label>
+                        <textarea class="form-control" id="vac_justificacion_adelanto" name="vac_justificacion_adelanto" rows="3" placeholder="Explique por qué necesita este adelanto de días."></textarea>
                     </div>
 
                 </div>

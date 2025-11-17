@@ -3,6 +3,12 @@
 var ruta_controlador = '../../controller/Vacaciones.php?op=';
 var dias_disponibles_global = 0; // Variable global para almacenar los días disponibles
 var tablaVacaciones; // Variable global para el DataTable
+var calendar;
+
+var ruta_controlador = '../../controller/Vacaciones.php?op=';
+var dias_disponibles_global = 0; // Variable global para almacenar los días disponibles
+var tablaVacaciones; // Variable global para el DataTable
+var calendar; // Variable global para FullCalendar
 
 $(document).ready(function() {
     // 1. Inicializar la vista del usuario logueado y obtener saldo
@@ -14,56 +20,208 @@ $(document).ready(function() {
         validarDias();
     });
     
-    // 3. Abrir modal
+    // 3. Abrir modal de solicitud
     $('#btnNuevaSolicitud').click(function() {
-        $('#modalSolicitudVacacionesLabel').html('Solicitar Vacaciones');
+        // La etiqueta del modal toma el texto del botón (Nueva Solicitud o Solicitar Adelanto)
+        $('#modalSolicitudVacacionesLabel').html($(this).text()); 
         $('#solicitud_form')[0].reset();
         $('#vac_id').val('');
+
+        // ⭐ LIMPIEZA CRÍTICA DE DATOS ⭐
+        $('#vac_dias_habiles').val(0); 
+        $('#vac_dias_solicitados').val(0); 
+        
+        // Limpiar y ocultar alertas no relacionadas con adelanto
+        $('#alerta_restriccion_antiguedad').addClass('d-none').empty();
+        $('#alerta_dias_insuficientes').addClass('d-none').empty();
+
+        // 🔥 CLAVE: Asegurar que la alerta de adelanto y el contenedor de justificación están SIEMPRE ocultos al abrir el modal.
+        $('#alerta_adelanto_dias').addClass('d-none');
+        $('#adelanto_justificacion_container').addClass('d-none');
+        $('#vac_justificacion_adelanto').prop('required', false);
+
         // Mostrar los días disponibles en el modal
         $('#dias_disponibles_modal').text(dias_disponibles_global);
-        $('#max_dias_permitidos').text(dias_disponibles_global);
-        $('#alerta_dias_insuficientes').addClass('d-none'); // Ocultar alerta
+        
+        // --- LÓGICA DE BLOQUEO Y ADELANTO ---
+        const saldo_cero_o_negativo = dias_disponibles_global <= 0;
+        
+        // Habilitar/Deshabilitar campos de fecha
+        $('#vac_fecha_inicio, #vac_fecha_fin').prop('disabled', saldo_cero_o_negativo);
+
+        if (saldo_cero_o_negativo) {
+            // Si el saldo es <= 0, forzamos el modo Adelanto
+            
+            // El botón de guardar debe estar deshabilitado hasta que el usuario haga click en "Quiero Adelantar" y seleccione fechas.
+            $('#btnGuardarSolicitud').prop('disabled', true); 
+            
+            // Insertar el botón "Quiero Adelantar" si no existe
+            if ($('#btnHabilitarAdelanto').length === 0) {
+                 $('#modalSolicitudVacacionesLabel').after('<button type="button" class="btn btn-sm btn-warning ml-3" id="btnHabilitarAdelanto">Quiero Adelantar Días</button>');
+            }
+
+            // Ocultamos la alerta de días disponibles estándar
+            $('#alerta_info_disponibles').addClass('d-none');
+
+        } else {
+            // Saldo positivo: Solicitud estándar
+            $('#btnGuardarSolicitud').prop('disabled', true); // Se habilita con validarDias()
+            $('#alerta_info_disponibles').removeClass('d-none');
+            $('#btnHabilitarAdelanto').remove(); // Quitar botón de habilitar si hay saldo
+        }
+
+        // Llamar a validarDias para deshabilitar el botón si los campos están vacíos/0
+        // ESTA LLAMADA es segura porque validarDias() sale temprano si los campos están deshabilitados.
+        validarDias(); 
+
         $('#modalSolicitudVacaciones').modal('show');
     });
     
-    // 4. Manejar el evento submit del formulario de solicitud
+    // --- NUEVO EVENTO PARA HABILITAR CAMPOS Y FORZAR CÁLCULO ---
+    $(document).on('click', '#btnHabilitarAdelanto', function() {
+        // Habilitar campos de fecha
+        $('#vac_fecha_inicio, #vac_fecha_fin').prop('disabled', false);
+        // Quitar el botón
+        $(this).remove(); 
+        
+        // Forzar el cálculo y la validación para que el botón de Guardar se habilite 
+        // tan pronto el usuario seleccione fechas.
+        calcularDiasHabiles(); 
+        validarDias(); 
+    });
+
+    // 4. Botón para abrir el Calendario/Modal
+    $('#btnVerCalendario').click(function() {
+        $('#modalCalendario').modal('show');
+    });
+
+    // 5. Manejar el evento submit del formulario de solicitud
     $('#solicitud_form').on('submit', function(e){
         guardarSolicitud(e);
     });
-    
-    // 5. Inicializar el DataTable para listar solicitudes (NUEVO)
-    listarSolicitudes();
-});
 
+    // 6. Inicializar el DataTable para listar solicitudes
+    listarSolicitudes();
+
+    // 7. Evento para inicializar FullCalendar CUANDO EL MODAL YA ES VISIBLE
+    $('#modalCalendario').on('shown.bs.modal', function() {
+        // Solo inicializamos FullCalendar la primera vez que se abre el modal
+        if (!calendar) {
+            inicializarFullCalendar();
+        }
+        // Forzamos a FullCalendar a recalcular sus dimensiones después de que el modal se muestra
+        if (calendar) {
+             calendar.updateSize(); 
+        }
+        cargarDetalleFechasTabla(); // Cargar la tabla de detalle
+    });
+    // 8. Botón para imprimir detalles
+    $('#btnImprimirDetalles').click(function() {
+        imprimirDetalles(); 
+    });
+
+    // 9. Adelantar vacaciones
+    $('#vac_fecha_inicio, #vac_fecha_fin').on('change', function() {
+        calcularDiasHabiles();
+        validarDias();
+    });
+    
+    // NUEVO: Validar justificación al escribir en ella
+    $('#vac_justificacion_adelanto').on('input', validarDias);
+
+});
 
 /* ========================================================================= */
 /* FUNCIONES DE DATA Y RESUMEN                                               */
 /* ========================================================================= */
 
+
+
 function getResumenVacaciones() {
-    $.post(ruta_controlador + 'get_resumen_dias', function(data) {
-        const resumen = JSON.parse(data);
-        
+    const usu_id = $('#usu_id').val(); 
+    
+    // Usamos $.post que es un atajo para $.ajax con método POST
+    $.post(ruta_controlador + 'get_resumen_dias', { usu_id: usu_id }, function(data) {
+        let resumen;
+        try {
+            resumen = JSON.parse(data);
+        } catch (e) {
+            console.error("Error al parsear el resumen de vacaciones:", data);
+            return;
+        }
+
         if (resumen.error) {
             console.error(resumen.error);
             return;
         }
 
-        // Almacenamos el valor globalmente
-        dias_disponibles_global = parseInt(resumen.dias_disponibles);
+        // 1. Almacenamos los valores clave del modelo
+        dias_disponibles_global = parseInt(resumen.dias_disponibles) || 0;
+        const dias_generados_total = parseInt(resumen.dias_generados) || 0;
+        const dias_usados_total = parseInt(resumen.dias_usados) || 0;
+        const antiguedad_anos_valor = resumen.antiguedad_anos || 0; 
+        const motivo_restriccion = resumen.motivo_restriccion || ''; 
 
-        // Mostrar datos en el dashboard
-        $('#antiguedad_anos').text(resumen.antiguedad_anos + ' años');
-        $('#dias_generados').text(resumen.dias_generados + ' días');
-        $('#dias_usados').text(resumen.dias_usados + ' días');
-        $('#dias_disponibles').text(resumen.dias_disponibles + ' días');
-        $('#fecha_ingreso_planta_info').text(resumen.fecha_ingreso_planta);
-    }).fail(function() {
-        // Manejo de error de la conexión
+        // 2. Mostrar datos en el dashboard
+        $('#antiguedad_anos').text(antiguedad_anos_valor + ' años');
+        $('#dias_generados').text(dias_generados_total + ' días');
+        $('#dias_usados').text(dias_usados_total + ' días');
+        $('#fecha_ingreso_planta_info').text(resumen.fecha_ingreso_planta || 'Calculando...');
+
+        // 3. Mostrar Saldo Disponible
+        $('#dias_disponibles').text(dias_disponibles_global);
+        $('#dias_disponibles_modal').text(dias_disponibles_global);
+        $('#max_dias_permitidos').text(dias_disponibles_global);
+
+
+        // --- Lógica para Días Adelantados (Deuda PENDIENTE) ---
+        // CLAVE: La deuda pendiente es el saldo negativo BRUTO (Generados - Usados)
+        const saldo_bruto = dias_generados_total - dias_usados_total;
+        const saldo_deuda_pendiente = saldo_bruto < 0 ? Math.abs(saldo_bruto) : 0;
+        
+        if (saldo_deuda_pendiente > 0) {
+            // Si el saldo bruto es negativo, significa que hay deuda pendiente.
+            $('#dias_adelantados_span_dashboard').html(`(-${saldo_deuda_pendiente} Adelantados)`).removeClass('d-none').addClass('text-danger font-weight-bold');
+            $('#dias_adelantados_modal').text(saldo_deuda_pendiente);
+        } else {
+             // Si el saldo bruto es cero o positivo, la deuda está compensada o no existe.
+             $('#dias_adelantados_span_dashboard').empty().addClass('d-none'); 
+             $('#dias_adelantados_modal').text('0');
+        }
+
+        // 4. Resaltar saldo disponible si es negativo
+        if (dias_disponibles_global < 0) {
+            $('#dias_disponibles').addClass('text-danger');
+            $('#dias_disponibles_modal').addClass('text-danger');
+        } else {
+            $('#dias_disponibles').removeClass('text-danger');
+            $('#dias_disponibles_modal').removeClass('text-danger');
+        }
+        
+        // 5. LÓGICA DE RESTRICCIÓN POR ANTIGÜEDAD
+        const alertaRestriccion = $('#alerta_restriccion_antiguedad');
+        
+        if (motivo_restriccion.length > 0) {
+            alertaRestriccion.removeClass('d-none alert-success').addClass('alert-warning').html(`<strong>Advertencia:</strong> ${motivo_restriccion}`);
+        } else {
+            alertaRestriccion.addClass('d-none').empty();
+        }
+        // 6. LÓGICA DE BLOQUEO DE SOLICITUD ESTÁNDAR
+        const btnNuevaSolicitud = $('#btnNuevaSolicitud');
+
+        if (dias_disponibles_global <= 0) {
+            // Si el saldo es cero o negativo, forzamos al modo "Adelanto"
+            btnNuevaSolicitud.text('Solicitar Adelanto de Días').removeClass('btn-success').addClass('btn-warning');
+        } else {
+            // Saldo positivo, modo "Solicitud Normal"
+            btnNuevaSolicitud.text('Nueva Solicitud').removeClass('btn-warning').addClass('btn-success');
+        }
+        
+    }).fail(function(jqXHR, textStatus, errorThrown) {
+        console.error("Fallo la llamada a get_resumen_dias:", textStatus, errorThrown, jqXHR.responseText);
         swal.fire("Error", "No se pudo obtener el resumen de vacaciones.", "error");
     });
 }
-
 /* ========================================================================= */
 /* LÓGICA DE VALIDACIÓN Y CÁLCULO DE DÍAS HÁBILES                             */
 /* ========================================================================= */
@@ -72,61 +230,99 @@ function getResumenVacaciones() {
  * Valida que los días hábiles solicitados no excedan los días disponibles.
  */
 function validarDias() {
-    const dias_solicitados_habiles = parseInt($('#vac_dias_habiles').val());
+    // 1. Obtener valores
+    const dias_solicitados = parseInt($('#vac_dias_habiles').val()) || 0; 
+    const dias_disponibles = dias_disponibles_global; // Puede ser 0 o negativo
+    const btnGuardar = $('#btnGuardarSolicitud');
+    const alertaInsuficientes = $('#alerta_dias_insuficientes'); 
+    const alertaAdelanto = $('#alerta_adelanto_dias');
+    const justificacionContainer = $('#adelanto_justificacion_container');
+    const justificacionInput = $('#vac_justificacion_adelanto');
+    
+    // Ocultar todas las alertas y quitar el requerimiento por defecto
+    alertaInsuficientes.addClass('d-none'); // Alerta Roja
+    alertaAdelanto.addClass('d-none');      // Alerta Amarilla
+    justificacionContainer.addClass('d-none');
+    justificacionInput.prop('required', false);
+    
+    // 2. CRÍTICO: Deshabilitar si no hay días solicitados o si los campos están deshabilitados
+    if (dias_solicitados === 0 || $('#vac_fecha_inicio').prop('disabled')) {
+        btnGuardar.prop('disabled', true);
+        return false; // <--- SALE AQUÍ, SIN MOSTRAR ALERTAS
+    }
+    
+    // 3. Lógica de ADELANTO (Solicitud excede saldo, o saldo es 0/negativo)
+    // Se ejecuta SÓLO si hay días solicitados Y días solicitados > días disponibles (e.g. 5 > -4)
+    if (dias_solicitados > dias_disponibles) {
+        // Mostramos la alerta de Adelanto y el contenedor de justificación
+        alertaAdelanto.removeClass('d-none');
+        justificacionContainer.removeClass('d-none');
+        justificacionInput.prop('required', true); // La justificación es obligatoria
+        
+        btnGuardar.prop('disabled', false); // Permite enviar la solicitud
+        return true;
+    }
+    
+    // 4. CONDICIÓN NORMAL (Días solicitados <= Días disponibles Y Saldo > 0)
+    else if (dias_disponibles > 0 && dias_solicitados <= dias_disponibles) {
+        btnGuardar.prop('disabled', false);
+        return true;
+    }
 
-    if (dias_solicitados_habiles > dias_disponibles_global) {
-        $('#alerta_dias_insuficientes').removeClass('d-none');
-        $('#btnGuardarSolicitud').prop('disabled', true);
-    } else {
-        $('#alerta_dias_insuficientes').addClass('d-none');
-        $('#btnGuardarSolicitud').prop('disabled', false);
+    // 5. Fallback
+    else {
+        btnGuardar.prop('disabled', true);
+        return false;
     }
 }
-
 /**
  * Calcula el número de días naturales y hábiles (Lunes a Viernes) entre dos fechas.
  */
 function calcularDiasHabiles() {
-    const fechaInicio = $('#vac_fecha_inicio').val();
-    const fechaFin = $('#vac_fecha_fin').val();
-    
-    // ... (El resto de la función calcularDiasHabiles es la misma que definimos en el paso anterior) ...
-    if (!fechaInicio || !fechaFin) {
-        $('#vac_dias_habiles').val(0);
-        $('#vac_dias_solicitados').val(0);
+    const fechaInicioStr = $('#vac_fecha_inicio').val();
+    const fechaFinStr = $('#vac_fecha_fin').val();
+    const diasSolicitadosInput = $('#vac_dias_solicitados');
+    const diasHabilesInput = $('#vac_dias_habiles');
+
+    if (!fechaInicioStr || !fechaFinStr) {
+        diasSolicitadosInput.val(0);
+        diasHabilesInput.val(0);
+        $('#dias_solicitados_info').text('0');
         return;
     }
 
-    let inicio = new Date(fechaInicio + 'T00:00:00'); // Aseguramos zona horaria para precisión
-    let fin = new Date(fechaFin + 'T00:00:00');
+    const fechaInicio = new Date(fechaInicioStr + 'T00:00:00');
+    const fechaFin = new Date(fechaFinStr + 'T00:00:00');
     
-    if (inicio > fin) {
-        $('#vac_dias_habiles').val(0);
-        $('#vac_dias_solicitados').val(0);
+    // Aseguramos que la fecha de fin sea posterior o igual a la de inicio
+    if (fechaInicio > fechaFin) {
+        diasSolicitadosInput.val(0);
+        diasHabilesInput.val(0);
+        $('#dias_solicitados_info').text('Fechas inválidas');
         return;
     }
-    
+
+    let totalDias = 0;
     let diasHabiles = 0;
-    let diasNaturales = 0;
+    let currentDate = new Date(fechaInicio.getTime());
     
-    let fechaActual = inicio;
-    // Iteramos día por día (Ajuste para iterar correctamente en JS)
-    while (fechaActual <= fin) {
-        let diaDeLaSemana = fechaActual.getDay(); 
+    // Iterar día por día
+    while (currentDate <= fechaFin) {
+        totalDias++;
+        const dia = currentDate.getDay(); // 0 = Domingo, 6 = Sábado
         
-        // Días hábiles: Lunes(1) a Viernes(5)
-        if (diaDeLaSemana !== 0 && diaDeLaSemana !== 6) {
+        // Si no es Sábado (6) ni Domingo (0), es día hábil
+        if (dia !== 0 && dia !== 6) { 
             diasHabiles++;
         }
         
-        diasNaturales++;
-        
         // Avanzar un día
-        fechaActual = new Date(fechaActual.setDate(fechaActual.getDate() + 1));
+        currentDate.setDate(currentDate.getDate() + 1);
     }
     
-    $('#vac_dias_habiles').val(diasHabiles);
-    $('#vac_dias_solicitados').val(diasNaturales);
+    diasSolicitadosInput.val(totalDias);
+    diasHabilesInput.val(diasHabiles);
+    $('#dias_solicitados_info').text(diasHabiles);
 }
 
 /* ========================================================================= */
@@ -134,7 +330,11 @@ function calcularDiasHabiles() {
 /* ========================================================================= */
 
 function listarSolicitudes() {
-    tablaVacaciones = $('#vacaciones_data').dataTable({
+    // 1. Obtener el rol_id. Lo usamos para la restricción de permisos.
+    // **NOTA**: Asumo que tienes un input hidden con id="rol_id" en tu HTML.
+    const rol_id = $('#rol_id').val() ?? '3'; // Usamos '3' (Empleado) si no se define.
+    
+    tablaVacaciones = $('#vacaciones_data').DataTable({
         "aProcessing": true,
         "aServerSide": true,
         dom: 'Bfrtip',
@@ -150,6 +350,41 @@ function listarSolicitudes() {
                 console.log(e.responseText);
             }
         },
+        // ¡¡AÑADIR ESTA DEFINICIÓN DE COLUMNAS!! Es la clave para el botón.
+        "columns": [
+            { data: 0 }, // Índice 0: ID Solicitud (vac_id)
+            { data: 1 }, // Índice 1: Fecha Inicio
+            { data: 2 }, // Índice 2: Fecha Fin
+            { data: 3 }, // Índice 3: Días Hábiles
+            { data: 4 }, // Índice 4: Estado (vac_estado)
+            { data: 5 }, // Índice 5: Fecha Solicitud
+            { data: 6 }, // Índice 6: Aprobador
+            { // Índice 7: Columna de Acciones (Botones)
+                data: 7, 
+                // Usamos 'render' para modificar el contenido de esta columna
+                render: function(data, type, row) {
+                    let botones = data; // Botones existentes (Ver o Cancelar)
+                    const estado = row[4].includes('Aprobada') ? 'Aprobada' : row[4]; // Obtenemos el estado (row[4])
+
+                    // CONDICIÓN 1: Solo si el usuario es Rol ID 2 (Jefe/Admin)
+                    if (rol_id === '2') {
+                        // CONDICIÓN 2: Solo si el estado es Aprobada (Necesario para impresión de documento final)
+                        // NOTA: El estado row[4] puede contener el badge HTML, así que buscamos la palabra.
+                        if (row[4].includes('Aprobada')) { 
+                            // row[0] contiene el vac_id para la función de impresión
+                            botones += `
+                                <button type="button" 
+                                    onClick="imprimirSolicitudDetalle(${row[0]});" 
+                                    class="btn btn-info btn-sm ml-1"
+                                    title="Imprimir Reporte Aprobado">
+                                    <i class="fa fa-print"></i>
+                                </button>`;
+                        }
+                    }
+                    return botones;
+                }
+            }
+        ],
         "bDestroy": true,
         "responsive": true,
         "bInfo": true,
@@ -179,7 +414,7 @@ function listarSolicitudes() {
                 "sSortDescending": ": Activar para ordenar la columna de manera descendente"
             }
         }
-    }).DataTable();
+    });
 }
 
 function cancelarSolicitud(vac_id) {
@@ -205,16 +440,17 @@ function guardarSolicitud(e) {
          swal.fire("Advertencia", "Debe seleccionar un rango de fechas válido con días hábiles.", "warning");
          return;
     }
-
-    if (dias_solicitados_habiles > dias_disponibles_global) {
-        // La validación ya debería haber deshabilitado el botón, pero es un buen control de seguridad
-         swal.fire("Error", "No tiene días disponibles suficientes para esta solicitud.", "error");
-         return;
+    
+    // **NUEVA VALIDACIÓN DE SEGURIDAD (POST-FRONT-END)**
+    // Si la función de validación del frontend dice que no es válido, detenemos el envío.
+    if (!validarDias()) {
+        swal.fire("Error", "La solicitud no cumple con los requisitos de días o requiere justificación.", "error");
+        return;
     }
     
     // Si la validación pasa, serializamos y enviamos
     var formData = new FormData($('#solicitud_form')[0]);
-    formData.append('op', 'guardar_solicitud'); 
+    formData.append('op', 'guardar_solicitud');
 
     $.ajax({
         url: '../../controller/Vacaciones.php?op=guardar_solicitud',
@@ -223,17 +459,18 @@ function guardarSolicitud(e) {
         contentType: false,
         processData: false,
         success: function(datos) {
-            if (datos === "ok") {
+            // Manejamos la respuesta del servidor (el 'ok' o el error que pueda venir de PHP)
+            if (datos.trim() === "ok") {
                 $('#modalSolicitudVacaciones').modal('hide');
                 swal.fire("¡Éxito!", "Solicitud enviada para aprobación.", "success");
                 getResumenVacaciones(); // Recarga el resumen para actualizar el saldo
-                tablaVacaciones.ajax.reload(); // <--- AÑADIR ESTA LÍNEA
+                tablaVacaciones.ajax.reload();
             } else {
-                swal.fire("Error", datos, "error"); // Mostrar errores del servidor
+                swal.fire("Error del Servidor", datos, "error"); // Mostrar errores del servidor
             }
         },
         error: function() {
-            swal.fire("Error", "Ocurrió un error en la comunicación con el servidor.", "error");
+            swal.fire("Error de Conexión", "Ocurrió un error en la comunicación con el servidor.", "error");
         }
     });
 }
@@ -262,3 +499,288 @@ function cancelarSolicitud(vac_id) {
         }
     });
 }
+
+/* ========================================================================= */
+/* FUNCIONES DEL CALENDARIO Y DETALLE DE FECHAS (DEBEN SER GLOBALES)         */
+/* ========================================================================= */
+
+// 1. FUNCIÓN PARA INICIALIZAR EL CALENDARIO (Global)
+function inicializarFullCalendar() {
+    const calendarEl = document.getElementById('calendar_container');
+    
+    // Si calendar ya existe, no hacemos nada (para evitar inicializaciones múltiples)
+    if (calendar) return;
+
+    calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'es',
+        height: 600, 
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,listWeek'
+        },
+        events: {
+            url: ruta_controlador + 'get_eventos_calendario', // Llama al nuevo endpoint del controlador
+            method: 'POST',
+            failure: function() {
+                console.error('Error al cargar eventos del calendario.');
+            }
+        },
+        eventClick: function(info) {
+            swal.fire({
+                title: info.event.title,
+                text: "Estado: " + info.event.extendedProps.estado + 
+                      "\nInicio: " + info.event.start.toLocaleDateString('es-ES') +
+                      "\nFin: " + (info.event.end ? (new Date(info.event.end.getTime() - 86400000)).toLocaleDateString('es-ES') : info.event.start.toLocaleDateString('es-ES')),
+                icon: 'info'
+            });
+        }
+    });
+    calendar.render();
+}
+
+// 2. FUNCIÓN PARA CARGAR LA TABLA DE DETALLE (Global)
+function cargarDetalleFechasTabla() { 
+    $.ajax({
+        url: ruta_controlador + 'listar_solicitudes_por_usuario', 
+        type: "post",
+        dataType: "json",
+        success: function(response) {
+            let html = '';
+            $('#tabla_detalle_fechas tbody').empty(); 
+
+            response.aaData.forEach(item => {
+                const fecha_inicio = item[1]; 
+                const fecha_fin = item[2];
+                const dias_habiles = item[3];
+                const estado_badge = item[4]; 
+
+                html += `<tr>
+                            <td>${fecha_inicio}</td>
+                            <td>${fecha_fin}</td>
+                            <td>${dias_habiles}</td>
+                            <td>${estado_badge}</td>
+                        </tr>`;
+            });
+
+            $('#tabla_detalle_fechas tbody').html(html);
+        },
+        error: function(e) {
+            console.error("Error al cargar detalle de fechas:", e.responseText);
+        }
+    });
+}
+
+    /* ========================================================================= */
+    /* FUNCIÓN DE IMPRESIÓN POR SOLICITUD                                        */
+    /* ========================================================================= */
+
+    function imprimirSolicitudDetalle(vac_id) {
+    // Usamos $.post con 'json' como dataType
+    $.post(ruta_controlador + 'get_detalles_solicitud', { vac_id: vac_id }, function(detalles) {
+        
+        if (detalles.error) {
+            swal.fire("Error del Servidor", detalles.error, "error");
+            return;
+        }
+        
+        // --- Variables auxiliares ---
+        const estado_solicitud = detalles.vac_estado;
+        const nombre_completo_solicitante = `${detalles.nombre_solicitante} ${detalles.apellido_solicitante}`;
+        const nombre_completo_aprobador = detalles.nombre_aprobador 
+            ? `${detalles.nombre_aprobador} ${detalles.apellido_aprobador}` 
+            : 'Pendiente / N/A';
+        const fecha_aprobacion = detalles.vac_fecha_aprobacion_f || 'N/A';
+        const dias_disponibles = detalles.dias_disponibles || 0;
+        const dias_usados = detalles.dias_usados || 0;
+        
+        // --- Constantes del Documento ---
+        const CODIGO_DOCUMENTO = 'SGC001';
+        const NIVEL_REVISION = '154';
+        const RUTA_LOGO = '../../public/Logo Lito.jpg'; // Ruta relativa desde la vista/Vacaciones
+
+
+        // --- Generación del Contenido Imprimible (Plantilla Corporativa) ---
+        const contenidoImprimible = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Reporte de Vacaciones - Solicitud N°${vac_id}</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 20px; font-size: 13px; }
+                    .header-doc { 
+                        display: flex; 
+                        justify-content: space-between; 
+                        align-items: center; 
+                        border: 1px solid #000; 
+                        padding: 5px; 
+                        margin-bottom: 20px;
+                        font-size: 11px;
+                    }
+                    .header-doc div { width: 33%; text-align: center; }
+                    .header-doc .logo img { max-height: 40px; float: left; }
+                    .header-doc .title { font-weight: bold; font-size: 14px; }
+                    
+                    h3 { color: #555; border-bottom: 1px solid #ccc; padding-bottom: 5px; margin-top: 20px; }
+                    .data-container { display: table; width: 100%; border-collapse: collapse; }
+                    .data-row { display: table-row; }
+                    .data-label, .data-value { display: table-cell; padding: 4px 10px 4px 0; border-bottom: 1px dotted #eee; }
+                    .data-label { font-weight: bold; width: 250px; }
+                    
+                    .badge-estado { padding: 4px 8px; border-radius: 4px; color: #fff; font-weight: bold; font-size: 12px; }
+                    .badge-Aprobada { background-color: #28a745; }
+                    .badge-Rechazada { background-color: #dc3545; }
+                    .badge-Pendiente { background-color: #ffc107; color: #333; }
+                    .badge-Cancelada { background-color: #6c757d; }
+
+                    .signatures { display: flex; justify-content: space-around; margin-top: 60px; width: 100%; }
+                    .signature-box { 
+                        width: 40%; 
+                        text-align: center; 
+                        border-top: 1px solid #000; 
+                        padding-top: 5px; 
+                        font-size: 12px;
+                    }
+                </style>
+            </head>
+            <body>
+                
+                <div class="header-doc">
+                    <div class="logo"><img src="${RUTA_LOGO}" alt="Logo Empresa"></div>
+                    <div class="title">SOLICITUD DE VACACIONES</div>
+                    <div class="code-rev">
+                        <div>**CÓDIGO:** ${CODIGO_DOCUMENTO}</div>
+                        <div>**REVISIÓN:** ${NIVEL_REVISION}</div>
+                    </div>
+                </div>
+
+                <h3>Información de la Solicitud (ID N°${detalles.vac_id})</h3>
+                <div class="data-container">
+                    <div class="data-row"><span class="data-label">Estado de Solicitud:</span> <span class="data-value"><span class="badge-estado badge-${estado_solicitud}">${estado_solicitud}</span></span></div>
+                    <div class="data-row"><span class="data-label">Fecha de Solicitud:</span> <span class="data-value">${detalles.vac_fecha_solicitud_f}</span></div>
+                    <div class="data-row"><span class="data-label">Solicitante:</span> <span class="data-value">${nombre_completo_solicitante}</span></div>
+                    <div class="data-row"><span class="data-label">Fecha de Ingreso a Planta:</span> <span class="data-value">${detalles.fecha_ingreso_planta}</span></div>
+                </div>
+
+                <h3>Detalle de Fechas y Días</h3>
+                <div class="data-container">
+                    <div class="data-row"><span class="data-label">Período Solicitado:</span> <span class="data-value">Del **${detalles.vac_fecha_inicio_f}** al **${detalles.vac_fecha_fin_f}**</span></div>
+                    <div class="data-row"><span class="data-label">Días Hábiles Solicitados:</span> <span class="data-value">${detalles.vac_dias_habiles} días</span></div>
+                    <div class="data-row"><span class="data-label">Días Naturales (Total):</span> <span class="data-value">${detalles.vac_dias_solicitados} días</span></div>
+                    <div class="data-row"><span class="data-label">Días Disponibles (Previo):</span> <span class="data-value">${dias_disponibles} días</span></div>
+                    <div class="data-row"><span class="data-label">Días Usados (Acumulado):</span> <span class="data-value">${dias_usados} días</span></div>
+                </div>
+                
+                <h3>Proceso de Aprobación</h3>
+                <div class="data-container">
+                    <div class="data-row"><span class="data-label">Aprobado por:</span> <span class="data-value">${nombre_completo_aprobador}</span></div>
+                    <div class="data-row"><span class="data-label">Fecha de Proceso:</span> <span class="data-value">${fecha_aprobacion}</span></div>
+                    ${detalles.vac_motivo_rechazo ? `<div class="data-row"><span class="data-label">Motivo de Rechazo:</span> <span class="data-value" style="color:red;">${detalles.vac_motivo_rechazo}</span></div>` : ''}
+                </div>
+
+                <div class="signatures">
+                    <div class="signature-box">
+                        ${nombre_completo_solicitante}<br>
+                        **Firma del Solicitante**
+                    </div>
+                    <div class="signature-box">
+                        ${nombre_completo_aprobador}<br>
+                        **Firma del Aprobador**
+                    </div>
+                </div>
+
+            </body>
+            </html>
+        `;
+
+        const ventanaImpresion = window.open('', '', 'height=600,width=800');
+        ventanaImpresion.document.write(contenidoImprimible);
+        ventanaImpresion.document.close();
+        ventanaImpresion.print();
+        
+    }, 'json').fail(function() {
+        swal.fire("Error", "Ocurrió un error de red al contactar al servidor. Revise F12.", "error");
+    });
+}
+
+function validarDias() {
+    // 1. Obtener valores
+    const dias_solicitados = parseInt($('#vac_dias_habiles').val()) || 0; 
+    const dias_disponibles = dias_disponibles_global; // Puede ser 0 o negativo
+    const btnGuardar = $('#btnGuardarSolicitud');
+    const alertaInsuficientes = $('#alerta_dias_insuficientes'); 
+    const alertaAdelanto = $('#alerta_adelanto_dias');
+    const justificacionContainer = $('#adelanto_justificacion_container');
+    const justificacionInput = $('#vac_justificacion_adelanto');
+    
+    // Ocultar todas las alertas y quitar el requerimiento por defecto
+    alertaInsuficientes.addClass('d-none'); // Alerta Roja
+    alertaAdelanto.addClass('d-none');      // Alerta Amarilla
+    justificacionContainer.addClass('d-none');
+    justificacionInput.prop('required', false);
+    
+    // 2. CRÍTICO: Deshabilitar si no hay días solicitados o si los campos están deshabilitados
+    if (dias_solicitados === 0 || $('#vac_fecha_inicio').prop('disabled')) {
+        btnGuardar.prop('disabled', true);
+        return false; // <--- SALE AQUÍ, DEJANDO LAS ALERTAS OCULTAS
+    }
+    
+    // 3. Lógica de ADELANTO (Solicitud excede saldo)
+    // Se ejecuta SÓLO si hay días solicitados Y días solicitados > días disponibles (e.g. 5 > -4)
+    if (dias_solicitados > dias_disponibles) {
+        // Mostramos la alerta de Adelanto y el contenedor de justificación
+        alertaAdelanto.removeClass('d-none');
+        justificacionContainer.removeClass('d-none');
+        justificacionInput.prop('required', true); // La justificación es obligatoria
+        
+        btnGuardar.prop('disabled', false); // Permite enviar la solicitud
+        return true;
+    }
+    
+    // 4. CONDICIÓN NORMAL (Días solicitados <= Días disponibles Y Saldo > 0)
+    else if (dias_disponibles > 0 && dias_solicitados <= dias_disponibles) {
+        btnGuardar.prop('disabled', false);
+        return true;
+    }
+
+    // 5. Fallback
+    else {
+        btnGuardar.prop('disabled', true);
+        return false;
+    }
+}
+
+function guardar_solicitud() {
+    var formData = new FormData($("#solicitud_form")[0]);
+
+    // Opcional: Si no hay justificación (porque no es adelanto), asegurarse de que el campo no se envíe con NULL
+    if (formData.get('vac_justificacion_adelanto') === '') {
+        formData.set('vac_justificacion_adelanto', '');
+    }
+    
+    $.ajax({
+        url: ruta_controlador + 'guardar_solicitud',
+        type: "POST",
+        data: formData,
+        contentType: false,
+        processData: false,
+        success: function(datos) {
+            // El servidor devuelve "ok" o el mensaje de error en texto plano
+            if (datos.trim() === "ok") { 
+                $('#modalSolicitudVacaciones').modal('hide');
+                swal.fire("Éxito", "Solicitud enviada para aprobación.", "success");
+                getResumenVacaciones(); // Actualizar el dashboard
+                // tablaVacaciones.ajax.reload(); 
+            } else {
+                // Muestra el texto exacto devuelto por el servidor
+                swal.fire("Error del Servidor", datos, "error"); 
+            }
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+             swal.fire("Error de Conexión", "No se pudo completar la solicitud de vacaciones.", "error"); 
+        }
+    });
+}
+
+
