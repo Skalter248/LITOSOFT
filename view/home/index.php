@@ -11,6 +11,7 @@
         exit();
     }
     
+    
     // NOTA: Si necesitas variables como $nombre_usuario, debes definirlas aquí
     // $nombre_usuario = $_SESSION['usu_nombre'] . ' ' . $_SESSION['usu_apellido_paterno'];
 ?>

@@ -42,6 +42,8 @@
                                 <th>F. Fin</th>
                                 <th>Días Hábiles</th>
                                 <th>F. Solicitud</th>
+                                <th>Estado</th> 
+                                <th>Adelanto / Justificación</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
