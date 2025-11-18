@@ -3,6 +3,8 @@
  * Clase Usuario - MODELO
  * Gestiona la interacción con la tabla LS_USUARIOS de la base de datos.
  */
+require_once('Vacaciones.php');
+
 class Usuario { 
     
     /**
@@ -51,5 +53,27 @@ class Usuario {
             error_log("Error de DB en login: " . $e->getMessage());
             return false;
         }
+    }
+
+    public function guardar_usuario($datos_usuario) {
+        
+        $conectar = Conexion::conectar();
+                $sql_insert = "INSERT INTO LS_USUARIOS (..., fecha_ingreso_planta) 
+                    VALUES (..., :fecha_ingreso_planta)";
+        $stmt = $conectar->prepare($sql_insert);
+        $stmt->bindValue(':fecha_ingreso_planta', $datos_usuario['fecha_ingreso_planta'], PDO::PARAM_STR);
+        
+        if ($stmt->execute()) {
+            
+            $nuevo_usu_id = $conectar->lastInsertId(); // OBTENER EL ID GENERADO
+            $fecha_ingreso = $datos_usuario['fecha_ingreso_planta'];
+
+            $vacaciones_model = new Vacaciones();
+            $vacaciones_model->inicializar_saldo_usuario($nuevo_usu_id, $fecha_ingreso);
+            
+            return ['success' => true, 'id' => $nuevo_usu_id];
+        }
+        
+        return ['success' => false, 'message' => 'Error al crear el usuario.'];
     }
 }

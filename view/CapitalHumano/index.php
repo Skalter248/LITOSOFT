@@ -3,21 +3,15 @@
     // 1. Carga configuraciones (incluye config/conexion.php)
 require_once("../../config/index.php"); 
 // Nota: Si index.php ya incluye conexion.php, solo necesitas esta línea.
-
 session_start();
 if (!isset($_SESSION['usu_id'])) { 
     header("Location: ../../index.php"); 
     exit(); 
 }
 
-// 2. Incluir el MODELO (Vacaciones), el cual extiende la clase Conexion
-require_once('../../models/Vacaciones.php'); 
+require_once("../../models/Vacaciones.php");
 
-// 3. Iniciar la lógica de Saldo LFT
-// NO es necesario que Vacaciones extienda Conexion. La clase Vacaciones
-// debería existir por sí misma e INSTANCIAR la conexión internamente.
-// Pero si insistes en la herencia:
-$vacaciones = new Vacaciones(); // ✅ Esta es la única nueva instancia que debe haber.
+$vacaciones = new Vacaciones();
 $vacaciones->ejecutar_logica_actualizacion_saldos();
 
 ?>

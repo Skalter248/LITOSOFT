@@ -36,15 +36,9 @@ if (isset($_SESSION["rol_id"])) {
                         </a>
                     </li>
                     <li class="blue-dirty">
-                        <a href="..\Vacaciones\">
-                            <span class="glyphicon glyphicon-object-align-right"></span>
+                        <a href="..\SolicitudVacaciones\">
+                            <span class="glyphicon glyphicon-send"></span>
                             <span class="lbl">Solicitud de Vacaciones</span>
-                        </a>
-                    </li>
-                    <li class="blue-dirty">
-                        <a href="..\AprobacionVacaciones\">
-                            <span class="glyphicon glyphicon-object-align-right"></span>
-                            <span class="lbl">Aprobación de Vacaciones</span>
                         </a>
                     </li>
                 </ul>

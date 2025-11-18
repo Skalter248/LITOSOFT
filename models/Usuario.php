@@ -2,7 +2,7 @@
     // ARCHIVO: models/Usuario.php
     
     // Asumimos que config/index.php ya cargó la clase Conexion
-    
+
     class Usuario {
         private $db;
 
@@ -14,6 +14,7 @@
         private function conectar() {
             return $this->db;
         }
+
 
         /* ========================================================================= */
         /* MÉTODOS CRUD DE USUARIOS                                                  */
@@ -161,5 +162,7 @@
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
     }
+
 ?>
