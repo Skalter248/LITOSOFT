@@ -62,7 +62,7 @@ if (isset($_SESSION["rol_id"])) {
                     </a>
                 </li>
                 <li class="blue-dirty">
-                    <a href="..\Vacaciones\">
+                    <a href="..\SolicitudVacaciones\">
                         <span class="glyphicon glyphicon-object-align-right"></span>
                         <span class="lbl">Solicitud de Vacaciones</span>
                     </a>

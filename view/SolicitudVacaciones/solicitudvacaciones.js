@@ -7,110 +7,180 @@ var tablaSolicitudes; // Variable global para el DataTable
 // Función principal que se ejecuta al cargar la página
 $(document).ready(function() {
     
-    // 1. Inicializar la tabla de historial
+    getResumenVacaciones(); // Carga el saldo disponible y lo guarda en dias_disponibles_global
     listarSolicitudes(); 
-    
-    // 2. Obtener el saldo de la UI y guardarlo globalmente
-    dias_disponibles_global = parseFloat($('#saldo_disponible_ui').text()) || 0.0; 
-    
-    // 3. Evento para calcular días hábiles y validar saldo
+     
+    // 1. Evento para calcular días hábiles y validar adelanto
     $('#vac_fecha_inicio, #vac_fecha_fin').on('change', function() {
         calcularDiasHabiles();
     });
 
-    // 4. Submit del formulario
+    // 2. Submit del formulario
     $('#solicitud_form').on('submit', function(e) {
         e.preventDefault();
         guardarSolicitud();
     });
 
-    // 5. Abrir modal
-    $('#btnNuevaSolicitud').click(function() {
+    $('#btnNuevaSolicitud').off('click'); 
+
+    // ⭐ PASO 2: Vincular el evento click de forma directa y simple
+    $('#btnNuevaSolicitud').on('click', function(e) {
+        // e.preventDefault(); // Generalmente no es necesario, pero es un buen guardia
         abrirModalSolicitud();
     });
+    
 });
 
-// =================================================================
-// CRUD y Lógica de Negocio
-// =================================================================
+/* =============================================================== */
+/* Lógica de Modal                                                 */
+/* =============================================================== */
 
 function abrirModalSolicitud() {
-    $('#modalSolicitudVacacionesLabel').html('Solicitar Vacaciones'); 
+    // 1. Limpiar y resetear el formulario
     $('#solicitud_form')[0].reset();
-    $('#vac_id').val('');
-    $('#vac_dias_habiles').val('');
-    $('#modalSolicitudVacaciones').modal('show'); 
-    // Ocultar alerta de saldo si estaba visible
+    $('#modalSolicitudVacacionesLabel').html('Solicitar Vacaciones');
+    
+    // 2. Limpiar campos de cálculo y alerta
+    $('#vac_dias_habiles').val('0.00');
+    $('#dias_habiles_info').text('Selecciona un rango de fechas para calcular los días.').removeClass('text-danger');
     $('#alerta_saldo').addClass('d-none');
+    
+    // 3. Abrir el modal de Bootstrap
+    $('#modalSolicitudVacaciones').modal('show'); 
 }
-
 /**
  * Calcula los días hábiles entre dos fechas.
  * NOTA: Esta función debe ser replicada en el backend (Vacaciones.php) para validación segura.
  */
-function calcularDiasHabiles() {
-    var inicio = $('#vac_fecha_inicio').val();
-    var fin = $('#vac_fecha_fin').val();
+/* =============================================================== */
+/* FUNCIONES DE LÓGICA DE DÍAS Y ADELANTO                          */
+/* =============================================================== */
 
-    if (!inicio || !fin) {
-        $('#vac_dias_habiles').val(0);
-        $('#dias_habiles_info').text('Selecciona ambas fechas.');
+function calcularDiasHabiles() {
+    const fecha_inicio = $('#vac_fecha_inicio').val();
+    const fecha_fin = $('#vac_fecha_fin').val();
+    
+    if (!fecha_inicio || !fecha_fin || fecha_inicio > fecha_fin) {
+        $('#vac_dias_habiles').val('0.00');
+        $('#dias_habiles_info').html('Selecciona un rango de fechas válido.').addClass('text-danger');
+        $('#alerta_saldo').addClass('d-none');
         return;
     }
-    
-    // Llama al controlador para obtener el cálculo seguro desde el backend
-    $.post(ruta_controlador + 'calcular_dias_habiles', { vac_fecha_inicio: inicio, vac_fecha_fin: fin }, function(data) {
-        var dias = parseFloat(data);
-        
-        $('#vac_dias_habiles').val(dias.toFixed(2));
-        $('#dias_habiles_info').text(dias + ' días hábiles solicitados.');
 
-        // Validación visual de adelanto
-        if (dias > dias_disponibles_global) {
-            $('#alerta_saldo').removeClass('d-none');
-        } else {
-            $('#alerta_saldo').addClass('d-none');
+    $.ajax({
+        // ⭐ AJUSTAR: Se asume que el case en el controlador será 'calcular_dias' o 'calcular_dias_habiles'
+        // Si usas el modelo directamente, sería 'calcular_dias_habiles'
+        url: ruta_controlador + 'calcular_dias_habiles', 
+        type: "POST",
+        data: { 
+            fecha_inicio: fecha_inicio,
+            fecha_fin: fecha_fin
+        },
+        dataType: "json",
+        success: function(response) {
+            if (response && response.dias_habiles !== undefined) { 
+                const dias_habiles = parseFloat(response.dias_habiles) || 0;
+                const dias_totales = parseFloat(response.dias_totales) || 0;
+                
+                $('#vac_dias_habiles').val(dias_habiles.toFixed(2));
+                $('#dias_habiles_info').html(`Total de días solicitados: **${dias_totales}** (Hábiles: **${dias_habiles.toFixed(2)}**)`);
+                $('#dias_habiles_info').removeClass('text-danger');
+
+                // ⭐ Lógica de Saldo/Adelanto (Usando la variable global) ⭐
+                if (dias_habiles > dias_disponibles_global) {
+                    const saldo_restante = (dias_disponibles_global - dias_habiles).toFixed(2);
+                    $('#alerta_saldo').html(`<strong>¡Advertencia!</strong> Los días solicitados (${dias_habiles.toFixed(2)}) exceden tu saldo (${dias_disponibles_global.toFixed(2)}). De aprobarse, tu saldo será **${saldo_restante} días** (Adelanto).`).removeClass('d-none');
+                } else {
+                    $('#alerta_saldo').addClass('d-none');
+                }
+            } else {
+                $('#vac_dias_habiles').val('0.00');
+                $('#dias_habiles_info').html('Error: Respuesta de cálculo inválida.').addClass('text-danger');
+            }
+        },
+        error: function(jqXHR) {
+            $('#vac_dias_habiles').val('0.00');
+            $('#dias_habiles_info').html(`Error del Servidor (Status ${jqXHR.status}).`).addClass('text-danger');
+            console.error("Respuesta del Servidor (PHP Error):", jqXHR.responseText);
         }
-    }).fail(function() {
-        $('#dias_habiles_info').text('Error al calcular días.');
-        $('#vac_dias_habiles').val(0);
     });
+}
+
+function getResumenVacaciones() {
+    $.post(ruta_controlador + 'get_saldo', { usu_id: $('#usu_id').val() }, function(data) {
+        try {
+            var saldo = JSON.parse(data);
+            
+            // 1. Asignar el valor disponible a la variable global
+            dias_disponibles_global = parseFloat(saldo.usu_dias_disponibles) || 0.0;
+            
+            // 2. Actualizar la UI del dashboard
+            $('#dias_disponibles').text(dias_disponibles_global.toFixed(2));
+            // Asegúrate de que los otros campos de la UI también se actualicen (opcional)
+
+        } catch (e) {
+            console.error("Error al parsear el saldo:", e);
+        }
+    });
+}
+
+function validarAdelanto(dias_solicitados) {
+    // Tomamos el saldo disponible de la variable global (que debe inicializarse al cargar la vista)
+    if (dias_disponibles_global < dias_solicitados) {
+        // Se requiere adelanto (saldo quedará negativo)
+        $('#alerta_saldo').removeClass('d-none');
+        var saldo_restante = dias_disponibles_global - dias_solicitados;
+        $('#alerta_saldo').html('<strong>¡Advertencia!</strong> Los días solicitados (' + dias_solicitados.toFixed(2) + ') exceden tu saldo (' + dias_disponibles_global.toFixed(2) + '). El saldo quedará en **' + saldo_restante.toFixed(2) + ' días** (Adelanto).');
+    } else {
+        // Saldo suficiente
+        $('#alerta_saldo').addClass('d-none');
+    }
 }
 
 /**
  * Envía la solicitud de vacaciones al controlador.
  */
 function guardarSolicitud() {
-    // Validación básica en el frontend
-    if (!$('#vac_fecha_inicio').val() || !$('#vac_fecha_fin').val() || parseFloat($('#vac_dias_habiles').val()) <= 0) {
-        swal.fire("Advertencia", "Debes seleccionar las fechas y el cálculo de días debe ser positivo.", "warning");
+    // 1. Validaciones básicas antes de enviar
+    var dias_habiles = parseFloat($('#vac_dias_habiles').val());
+    if (dias_habiles <= 0 || isNaN(dias_habiles)) {
+        swal.fire("Atención", "El período seleccionado no contiene días hábiles válidos.", "warning");
         return;
     }
+    
+    // Deshabilitar botón para evitar doble click
+    $('#btnGuardar').prop('disabled', true); 
 
-    var formData = new FormData($('#solicitud_form')[0]);
-    formData.append("op", "guardar_solicitud");
-
+    // 2. Crear FormData con todos los campos
+    var formData = $('#solicitud_form').serialize();
+    
+    // 3. Enviar solicitud AJAX
     $.ajax({
-        url: ruta_controlador + 'guardar_solicitud', // La op ya está en formData
+        url: ruta_controlador + 'guardar_solicitud', // Case 'guardar_solicitud' en controller
         type: "POST",
         data: formData,
-        contentType: false,
-        processData: false,
+        dataType: "json",
         success: function(datos) {
-            datos = JSON.parse(datos);
-            if (datos.success) {
+            $('#btnGuardar').prop('disabled', false); 
+            if (datos.status === "ok") {
+                // Éxito: Cerrar modal y mostrar mensaje
                 $('#modalSolicitudVacaciones').modal('hide');
-                swal.fire("Éxito", "Solicitud enviada para aprobación.", "success");
+                swal.fire("Enviada", datos.message || "Solicitud enviada a tu jefe inmediato.", "success");
                 
-                // Actualizar UI
-                listarSolicitudes(); 
-                // Aquí podrías hacer una llamada AJAX para actualizar los saldos de los cards
+                // Recargar información y tabla de historial
+                getResumenVacaciones(); // <-- Fundamental para que el saldo refleje la solicitud (aunque el cambio real sea al aprobar)
+                if (typeof tablaVacaciones !== 'undefined' && tablaVacaciones) {
+                    tablaVacaciones.ajax.reload(); 
+                }
             } else {
+                // Muestra el mensaje de error del controlador
                 swal.fire("Error", datos.message || "Error desconocido del servidor.", "error"); 
             }
         },
         error: function(jqXHR) {
+             $('#btnGuardar').prop('disabled', false); 
              swal.fire("Error de Conexión", "No se pudo conectar con el servidor.", "error");
+             console.error(jqXHR.responseText);
         }
     });
 }

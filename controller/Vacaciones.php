@@ -32,37 +32,63 @@ switch ($op) {
     // =================================================================
     // CASE 1: CALCULAR DÍAS HÁBILES
     // =================================================================
-    case 'calcular_dias_habiles':
-        // Llama a la función del modelo para la precisión del cálculo.
-        $fecha_inicio = $_POST['vac_fecha_inicio'] ?? '';
-        $fecha_fin = $_POST['vac_fecha_fin'] ?? '';
-        
-        $dias_habiles = $vacaciones->calcular_dias_habiles($fecha_inicio, $fecha_fin);
-        // Retorna el número de días directamente al JS
-        echo $dias_habiles; 
-        break;
+    case 'calcular_dias':
+    // Verifica que ambas fechas hayan llegado
+    if (empty($_POST['fecha_inicio']) || empty($_POST['fecha_fin'])) {
+        echo json_encode(['error' => 'Debe seleccionar ambas fechas.']);
+        exit();
+    }
+    
+    $fecha_inicio = $_POST['fecha_inicio'];
+    $fecha_fin = $_POST['fecha_fin'];
+
+    // Llama al método del modelo
+    $resultado = $vacaciones->calcular_dias_habiles($fecha_inicio, $fecha_fin);
+    
+    // Devuelve días hábiles y naturales
+    echo json_encode($resultado); 
+    break;
 
     // =================================================================
     // CASE 2: GUARDAR NUEVA SOLICITUD
     // =================================================================
     case 'guardar_solicitud':
-        
-        // Validación mínima
-        if (empty($_POST['vac_fecha_inicio']) || empty($_POST['vac_fecha_fin'])) {
-            echo json_encode(['success' => false, 'message' => 'Debe seleccionar ambas fechas.']);
-            exit();
-        }
+    $usu_id = $_SESSION['usu_id']; 
 
-        $usu_id = $_SESSION['usu_id']; 
-        $fecha_inicio = $_POST['vac_fecha_inicio'];
-        $fecha_fin = $_POST['vac_fecha_fin'];
-        $dias_habiles = $_POST['vac_dias_habiles'] ?? 0.00; // Viene del cálculo JS/backend
-        $observaciones = $_POST['vac_observaciones'] ?? '';
+    // 1. Obtener el ID del jefe
+    $usu_jefe_id = $vacaciones->get_jefe_inmediato($usu_id);
+    if ($usu_jefe_id === 0) {
+        echo json_encode(['status' => 'error', 'message' => 'No se encontró un jefe inmediato asociado.']);
+        exit();
+    }
+    
+    // 2. Preparar los datos
+    $datos_solicitud = [
+        'usu_id' => $usu_id,
+        'usu_jefe_id' => $usu_jefe_id,
+        'vac_fecha_inicio' => $_POST['vac_fecha_inicio'],
+        'vac_fecha_fin' => $_POST['vac_fecha_fin'],
+        // Se asume que estos campos vienen calculados y validados desde JS
+        'vac_dias_habiles' => (float)$_POST['vac_dias_habiles'],
+        'vac_dias_naturales' => (int)$_POST['vac_dias_naturales'], 
+        'vac_observaciones' => $_POST['vac_observaciones'] ?? ''
+    ];
 
-        $resultado = $vacaciones->guardar_solicitud($usu_id, $fecha_inicio, $fecha_fin, $dias_habiles, $observaciones);
-        // El modelo devuelve una respuesta JSON {"success": true} o {"success": false, "message": "..."}
-        echo $resultado; 
-        break;
+    // 3. Validar si hay días solicitados
+    if ($datos_solicitud['vac_dias_habiles'] <= 0) {
+        echo json_encode(['status' => 'error', 'message' => 'El periodo no contiene días hábiles válidos para solicitar.']);
+        exit();
+    }
+
+    // 4. Guardar la solicitud
+    $resultado = $vacaciones->guardar_solicitud($datos_solicitud);
+    
+    if ($resultado === "ok") {
+        echo json_encode(['status' => 'ok', 'message' => 'Solicitud enviada correctamente.']);
+    } else {
+        echo json_encode(['status' => 'error', 'message' => $resultado]);
+    }
+    break;
 
     // =================================================================
     // CASE 3: LISTAR SOLICITUDES PARA DATATABLES

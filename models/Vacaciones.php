@@ -342,62 +342,6 @@ class Vacaciones {
     /**
      * Calcula los días hábiles (lunes a viernes) entre dos fechas (inclusivo).
      */
-    public function calcular_dias_habiles($fecha_inicio, $fecha_fin) {
-        if (empty($fecha_inicio) || empty($fecha_fin) || strtotime($fecha_inicio) > strtotime($fecha_fin)) {
-            return 0;
-        }
-        
-        try {
-            $start = new DateTime($fecha_inicio);
-            $end = new DateTime($fecha_fin);
-            // Ajustar el fin para incluir el último día
-            $end->modify('+1 day'); 
-
-            $dias_habiles = 0;
-            $interval = new DateInterval('P1D'); 
-            $period = new DatePeriod($start, $interval, $end);
-
-            foreach ($period as $day) {
-                $weekday = $day->format('N'); // 1 (Lunes) a 7 (Domingo)
-                
-                // Si es Lunes (1) a Viernes (5)
-                if ($weekday >= 1 && $weekday <= 5) {
-                    // Aquí deberías agregar la lógica para EXCLUIR días festivos si tienes una tabla de festivos
-                    $dias_habiles++;
-                }
-            }
-            return $dias_habiles;
-        } catch (Exception $e) {
-            error_log("Error al calcular días hábiles: " . $e->getMessage());
-            return 0;
-        }
-    }
-
-    public function guardar_solicitud($usu_id, $fecha_inicio, $fecha_fin, $dias_habiles, $observaciones) {
-        $conectar = Conexion::conectar();
-        
-        // El saldo se validará *visualmente* en el frontend y *estrictamente* en la aprobación, no aquí.
-        
-        $sql = "INSERT INTO LS_VACACIONES_SOLICITUDES 
-                (usu_id, vac_fecha_solicitud, vac_fecha_inicio, vac_fecha_fin, vac_dias_habiles, vac_observaciones, vac_estado) 
-                VALUES 
-                (:usu_id, NOW(), :fecha_inicio, :fecha_fin, :dias_habiles, :observaciones, 'Pendiente')";
-                
-        $stmt = $conectar->prepare($sql);
-        $stmt->bindValue(':usu_id', $usu_id, PDO::PARAM_INT);
-        $stmt->bindValue(':fecha_inicio', $fecha_inicio, PDO::PARAM_STR);
-        $stmt->bindValue(':fecha_fin', $fecha_fin, PDO::PARAM_STR);
-        $stmt->bindValue(':dias_habiles', number_format((float)$dias_habiles, 2, '.', ''), PDO::PARAM_STR);
-        $stmt->bindValue(':observaciones', $observaciones, PDO::PARAM_STR);
-
-        try {
-            $stmt->execute();
-            return json_encode(['success' => true]);
-        } catch (PDOException $e) {
-            error_log("Error al guardar solicitud: " . $e->getMessage());
-            return json_encode(['success' => false, 'message' => 'Error de BD al guardar la solicitud.']);
-        }
-    }
 
     public function listar_mis_solicitudes($usu_id) {
         $conectar = Conexion::conectar();
@@ -482,6 +426,97 @@ class Vacaciones {
         
         return $data;
     }
+
+    /**
+     * Obtiene el ID del jefe inmediato del usuario.
+     * @param int $usu_id ID del usuario.
+     * @return int ID del jefe o 0 si no tiene.
+     */
+    public function get_jefe_inmediato($usu_id) {
+        $conectar = Conexion::conectar();
+        
+        $sql = "SELECT jefe_id FROM ls_usuarios WHERE usu_id = :usu_id";
+        $stmt = $conectar->prepare($sql);
+        $stmt->bindValue(':usu_id', $usu_id, PDO::PARAM_INT);
+        $stmt->execute();
+        
+        $data = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // Si no tiene jefe o el ID es nulo, devuelve 0 para evitar errores.
+        return (int)($data['jefe_id'] ?? 0);
+    }
+
+    /**
+     * Calcula días hábiles y naturales entre dos fechas, excluyendo fines de semana (Sáb/Dom) y festivos.
+     * @param string $fecha_inicio Fecha de inicio (Y-m-d).
+     * @param string $fecha_fin Fecha de fin (Y-m-d).
+     * @return array ['dias_habiles' => float, 'dias_naturales' => int]
+     */
+    public function calcular_dias_habiles($fecha_inicio, $fecha_fin) {
+        $conectar = Conexion::conectar();
+        
+        // Obtener días festivos de la BD (asumiendo una tabla LS_DIAS_FESTIVOS)
+        $sql_festivos = "SELECT dia_fecha FROM LS_DIAS_FESTIVOS";
+        $stmt_festivos = $conectar->query($sql_festivos);
+        $festivos_db = $stmt_festivos->fetchAll(PDO::FETCH_COLUMN, 0);
+
+        $inicio = new DateTime($fecha_inicio);
+        $fin = new DateTime($fecha_fin);
+        // Incluir el día de fin
+        $fin->modify('+1 day'); 
+        
+        $dias_habiles = 0;
+        $dias_naturales = 0;
+        $intervalo = new DateInterval('P1D');
+        $periodo = new DatePeriod($inicio, $intervalo, $fin);
+
+        foreach ($periodo as $dia) {
+            $dias_naturales++;
+            $dia_semana = (int)$dia->format('w'); // 0 (Dom) a 6 (Sáb)
+            $dia_fecha = $dia->format('Y-m-d');
+            
+            // Excluir fines de semana (0=Domingo, 6=Sábado) y días festivos
+            if ($dia_semana != 0 && $dia_semana != 6 && !in_array($dia_fecha, $festivos_db)) {
+                $dias_habiles++;
+            }
+        }
+
+        return [
+            'dias_habiles' => (float)number_format($dias_habiles, 2, '.', ''),
+            'dias_naturales' => $dias_naturales
+        ];
+    }
+
+    /**
+     * Guarda una nueva solicitud de vacaciones en estado PENDIENTE.
+     * @param array $datos_solicitud Todos los datos de la solicitud.
+     * @return string 'ok' si es exitoso, o mensaje de error.
+     */
+    public function guardar_solicitud($datos_solicitud) {
+        $conectar = Conexion::conectar();
+        
+        $sql = "INSERT INTO LS_VACACIONES_SOLICITUDES 
+                (usu_id, usu_jefe_id, vac_fecha_inicio, vac_fecha_fin, vac_dias_naturales, vac_dias_habiles, vac_observaciones, vac_estado, vac_fecha_solicitud) 
+                VALUES 
+                (:usu_id, :jefe_id, :inicio, :fin, :naturales, :habiles, :obs, 'PENDIENTE', NOW())";
+                
+        $stmt = $conectar->prepare($sql);
+        
+        $stmt->bindValue(':usu_id', $datos_solicitud['usu_id'], PDO::PARAM_INT);
+        $stmt->bindValue(':jefe_id', $datos_solicitud['usu_jefe_id'], PDO::PARAM_INT);
+        $stmt->bindValue(':inicio', $datos_solicitud['vac_fecha_inicio'], PDO::PARAM_STR);
+        $stmt->bindValue(':fin', $datos_solicitud['vac_fecha_fin'], PDO::PARAM_STR);
+        $stmt->bindValue(':naturales', $datos_solicitud['vac_dias_naturales'], PDO::PARAM_INT);
+        $stmt->bindValue(':habiles', $datos_solicitud['vac_dias_habiles'], PDO::PARAM_STR);
+        $stmt->bindValue(':obs', $datos_solicitud['vac_observaciones'], PDO::PARAM_STR);
+
+        try {
+            return $stmt->execute() ? "ok" : "Error al ejecutar la inserción.";
+        } catch (PDOException $e) {
+            return "Error PDO al guardar la solicitud: " . $e->getMessage();
+        }
+    }
+
         
     // ... [Aquí van otras funciones de tu modelo, como get_saldo_actual, etc.]
 }

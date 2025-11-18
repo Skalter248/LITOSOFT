@@ -123,8 +123,8 @@ $dias_usados = number_format($saldo['usu_dias_usados'] ?? 0, 2);
                     <h3 class="card-title">Historial de Solicitudes</h3>
                 </div>
                 <div class="card-block">
-                    <button type="button" id="btnNuevaSolicitud" class="btn btn-success mb-3">
-                        <i class="fa fa-calendar-plus-o"></i> Nueva Solicitud
+                    <button type="button" class="btn btn-success" id="btnNuevaSolicitud">
+                        <i class="fa fa-plus"></i> Solicitar Vacaciones
                     </button>
                     
                     <div class="table-responsive">
@@ -152,7 +152,7 @@ $dias_usados = number_format($saldo['usu_dias_usados'] ?? 0, 2);
 
     <?php 
         // Incluir el modal de nueva solicitud 
-        require_once("modalvacaciones.php");
+        require_once("modalSolicitudVacaciones.php");
     ?>
     
     <style>
@@ -181,6 +181,6 @@ $dias_usados = number_format($saldo['usu_dias_usados'] ?? 0, 2);
 
     <?php require_once("../MainJs/js.php");?>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script type="text/javascript" src="mntvacaciones.js"></script> 
+    <script type="text/javascript" src="solicitudvacaciones.js"></script> 
 </body>
 </html>
