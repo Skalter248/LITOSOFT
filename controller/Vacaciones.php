@@ -90,6 +90,34 @@ switch ($op) {
     }
     break;
 
+    case 'get_saldo':
+        if (!isset($_SESSION['usu_id'])) {
+            echo json_encode(['usu_dias_disponibles' => 0]);
+            exit();
+        }
+        
+        $usu_id = $_SESSION['usu_id'];
+        // Reutilizamos la función que ya tienes en el modelo
+        $saldo = $vacaciones->get_saldo_actual($usu_id);
+        
+        // Devolvemos el array completo en JSON
+        echo json_encode($saldo);
+        break;
+
+    
+
+    case 'calcular_dias_habiles':
+    // Recibimos los datos del POST
+    $fecha_inicio = $_POST['fecha_inicio'] ?? '';
+    $fecha_fin = $_POST['fecha_fin'] ?? '';
+
+    // Llamamos al modelo
+    $resultado = $vacaciones->calcular_dias_habiles($fecha_inicio, $fecha_fin);
+    
+    // Devolvemos JSON
+    echo json_encode($resultado);
+    break;
+
     // =================================================================
     // CASE 3: LISTAR SOLICITUDES PARA DATATABLES
     // =================================================================

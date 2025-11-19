@@ -36,16 +36,23 @@ $(document).ready(function() {
 /* =============================================================== */
 
 function abrirModalSolicitud() {
-    // 1. Limpiar y resetear el formulario
+    $('#modalSolicitudVacacionesLabel').html('Solicitar Vacaciones'); 
     $('#solicitud_form')[0].reset();
-    $('#modalSolicitudVacacionesLabel').html('Solicitar Vacaciones');
+    $('#vac_id').val('');
     
-    // 2. Limpiar campos de cálculo y alerta
+    // 1. Cargar el saldo actualizado al abrir el modal
+    getResumenVacaciones(); // Esto llenará #saldo_disponible_modal
+
+    // 2. Resetear cálculos
     $('#vac_dias_habiles').val('0.00');
-    $('#dias_habiles_info').text('Selecciona un rango de fechas para calcular los días.').removeClass('text-danger');
+    $('#vac_dias_naturales').val('0');
+    $('#dias_habiles_info').html('Selecciona un rango de fechas para calcular los días.').removeClass('text-danger');
     $('#alerta_saldo').addClass('d-none');
     
-    // 3. Abrir el modal de Bootstrap
+    // 3. REINICIAR VISIBILIDAD DE OBSERVACIONES (Oculto y no requerido)
+    $('#div_observaciones_container').addClass('d-none');
+    $('#vac_observaciones').prop('required', false).val('');
+    
     $('#modalSolicitudVacaciones').modal('show'); 
 }
 /**
@@ -60,17 +67,39 @@ function calcularDiasHabiles() {
     const fecha_inicio = $('#vac_fecha_inicio').val();
     const fecha_fin = $('#vac_fecha_fin').val();
     
-    if (!fecha_inicio || !fecha_fin || fecha_inicio > fecha_fin) {
+    // 1. Validar que ambos campos tengan datos
+    if (!fecha_inicio || !fecha_fin) {
         $('#vac_dias_habiles').val('0.00');
-        $('#dias_habiles_info').html('Selecciona un rango de fechas válido.').addClass('text-danger');
+        $('#vac_dias_naturales').val('0');
+        $('#dias_habiles_info').html('Selecciona ambas fechas.').removeClass('text-danger');
         $('#alerta_saldo').addClass('d-none');
+        
+        // OCULTAR Y QUITAR REQUERIMIENTO
+        $('#div_observaciones_container').addClass('d-none');
+        $('#vac_observaciones').prop('required', false).val('');
         return;
     }
 
+    // 2. Validar que Inicio NO sea mayor que Fin
+    // Usamos new Date() para una comparación robusta
+    const dateInicio = new Date(fecha_inicio.replace(/-/g, '/'));
+    const dateFin = new Date(fecha_fin.replace(/-/g, '/'));
+
+    if (dateInicio > dateFin) {
+        $('#vac_dias_habiles').val('0.00');
+        $('#vac_dias_naturales').val('0');
+        $('#dias_habiles_info').html('La fecha de inicio no puede ser mayor a la final.').addClass('text-danger');
+        $('#alerta_saldo').addClass('d-none');
+        
+        // OCULTAR Y QUITAR REQUERIMIENTO
+        $('#div_observaciones_container').addClass('d-none');
+        $('#vac_observaciones').prop('required', false).val('');
+        return;
+    }
+
+    // 3. Si pasa las validaciones, llamar al servidor
     $.ajax({
-        // ⭐ AJUSTAR: Se asume que el case en el controlador será 'calcular_dias' o 'calcular_dias_habiles'
-        // Si usas el modelo directamente, sería 'calcular_dias_habiles'
-        url: ruta_controlador + 'calcular_dias_habiles', 
+        url: ruta_controlador + 'calcular_dias_habiles',
         type: "POST",
         data: { 
             fecha_inicio: fecha_inicio,
@@ -80,46 +109,81 @@ function calcularDiasHabiles() {
         success: function(response) {
             if (response && response.dias_habiles !== undefined) { 
                 const dias_habiles = parseFloat(response.dias_habiles) || 0;
-                const dias_totales = parseFloat(response.dias_totales) || 0;
+                const dias_naturales = parseFloat(response.dias_naturales) || 0;
                 
+                // Actualizar inputs y la información del cálculo
                 $('#vac_dias_habiles').val(dias_habiles.toFixed(2));
-                $('#dias_habiles_info').html(`Total de días solicitados: **${dias_totales}** (Hábiles: **${dias_habiles.toFixed(2)}**)`);
+                $('#vac_dias_naturales').val(dias_naturales);
+                $('#dias_habiles_info').html(`Total de días naturales: <strong>${dias_naturales}</strong>. Días hábiles válidos: <strong>${dias_habiles.toFixed(2)}</strong>.`);
                 $('#dias_habiles_info').removeClass('text-danger');
 
-                // ⭐ Lógica de Saldo/Adelanto (Usando la variable global) ⭐
+                // --- Lógica de Saldo y Justificación de Adelanto ---
                 if (dias_habiles > dias_disponibles_global) {
-                    const saldo_restante = (dias_disponibles_global - dias_habiles).toFixed(2);
-                    $('#alerta_saldo').html(`<strong>¡Advertencia!</strong> Los días solicitados (${dias_habiles.toFixed(2)}) exceden tu saldo (${dias_disponibles_global.toFixed(2)}). De aprobarse, tu saldo será **${saldo_restante} días** (Adelanto).`).removeClass('d-none');
+                    // CASO: ADELANTO (Saldo insuficiente)
+                    const saldo_restante = dias_disponibles_global - dias_habiles;
+                    
+                    $('#alerta_saldo').removeClass('d-none');
+                    $('#alerta_saldo').html(`<strong>¡Advertencia!</strong> Saldo insuficiente (${dias_disponibles_global.toFixed(2)} días). Quedarás con **${saldo_restante.toFixed(2)}** días (Adelanto).`);
+                    
+                    // MOSTRAR OBSERVACIONES Y HACERLO OBLIGATORIO
+                    $('#div_observaciones_container').removeClass('d-none');
+                    $('#vac_observaciones').prop('required', true).removeClass('border-danger').addClass('border-danger'); // Asegura el borde rojo
+
                 } else {
+                    // CASO: NORMAL (Saldo suficiente)
                     $('#alerta_saldo').addClass('d-none');
+                    
+                    // OCULTAR OBSERVACIONES Y QUITAR OBLIGATORIEDAD
+                    $('#div_observaciones_container').addClass('d-none');
+                    $('#vac_observaciones').prop('required', false).removeClass('border-danger');
+                    $('#vac_observaciones').val(''); // Limpiar el contenido si cambió de Adelanto a Normal
                 }
+                
             } else {
                 $('#vac_dias_habiles').val('0.00');
-                $('#dias_habiles_info').html('Error: Respuesta de cálculo inválida.').addClass('text-danger');
+                $('#vac_dias_naturales').val('0');
+                $('#dias_habiles_info').html('Error al calcular.').addClass('text-danger');
             }
         },
         error: function(jqXHR) {
+            console.error("Error PHP:", jqXHR.responseText);
             $('#vac_dias_habiles').val('0.00');
-            $('#dias_habiles_info').html(`Error del Servidor (Status ${jqXHR.status}).`).addClass('text-danger');
-            console.error("Respuesta del Servidor (PHP Error):", jqXHR.responseText);
+            $('#vac_dias_naturales').val('0');
+            $('#dias_habiles_info').html('Error de conexión con el servidor.').addClass('text-danger');
         }
     });
 }
 
 function getResumenVacaciones() {
-    $.post(ruta_controlador + 'get_saldo', { usu_id: $('#usu_id').val() }, function(data) {
-        try {
-            var saldo = JSON.parse(data);
+    // 1. Colocamos un indicador de carga mientras llega la respuesta
+    $('#saldo_disponible_modal').text('...'); 
+    
+    $.ajax({
+        url: ruta_controlador + 'get_saldo',
+        type: "POST",
+        dataType: "json", // Le decimos a jQuery que espere JSON
+        success: function(saldo) { // 'saldo' YA es un objeto
             
-            // 1. Asignar el valor disponible a la variable global
-            dias_disponibles_global = parseFloat(saldo.usu_dias_disponibles) || 0.0;
-            
-            // 2. Actualizar la UI del dashboard
-            $('#dias_disponibles').text(dias_disponibles_global.toFixed(2));
-            // Asegúrate de que los otros campos de la UI también se actualicen (opcional)
-
-        } catch (e) {
-            console.error("Error al parsear el saldo:", e);
+            // 2. Comprobación de que el objeto tiene la propiedad
+            if (saldo && saldo.usu_dias_disponibles !== undefined) {
+                // ACTUALIZACIÓN DE LA VARIABLE GLOBAL
+                dias_disponibles_global = parseFloat(saldo.usu_dias_disponibles) || 0.0;
+                
+                // ACTUALIZACIÓN CRÍTICA DEL MODAL (Usamos .text() en el <div>)
+                $('#saldo_disponible_modal').text(dias_disponibles_global.toFixed(2)); 
+                
+                // Actualizar la UI del Dashboard (si existe)
+                $('#dias_disponibles_ui').text(dias_disponibles_global.toFixed(2));
+                
+                console.log("Saldo sincronizado (ÉXITO):", dias_disponibles_global);
+            } else {
+                $('#saldo_disponible_modal').text('Error: Saldo inválido.'); 
+            }
+        },
+        error: function(jqXHR, textStatus, errorThrown) {
+            // 3. Manejo de Fallo
+            $('#saldo_disponible_modal').text('Error (Revisar)');
+            console.error("Error AJAX get_saldo:", jqXHR.responseText);
         }
     });
 }

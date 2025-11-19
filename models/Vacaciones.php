@@ -453,40 +453,54 @@ class Vacaciones {
      * @return array ['dias_habiles' => float, 'dias_naturales' => int]
      */
     public function calcular_dias_habiles($fecha_inicio, $fecha_fin) {
-        $conectar = Conexion::conectar();
-        
-        // Obtener días festivos de la BD (asumiendo una tabla LS_DIAS_FESTIVOS)
-        $sql_festivos = "SELECT dia_fecha FROM LS_DIAS_FESTIVOS";
-        $stmt_festivos = $conectar->query($sql_festivos);
-        $festivos_db = $stmt_festivos->fetchAll(PDO::FETCH_COLUMN, 0);
-
-        $inicio = new DateTime($fecha_inicio);
-        $fin = new DateTime($fecha_fin);
-        // Incluir el día de fin
-        $fin->modify('+1 day'); 
-        
         $dias_habiles = 0;
         $dias_naturales = 0;
-        $intervalo = new DateInterval('P1D');
-        $periodo = new DatePeriod($inicio, $intervalo, $fin);
 
-        foreach ($periodo as $dia) {
-            $dias_naturales++;
-            $dia_semana = (int)$dia->format('w'); // 0 (Dom) a 6 (Sáb)
-            $dia_fecha = $dia->format('Y-m-d');
-            
-            // Excluir fines de semana (0=Domingo, 6=Sábado) y días festivos
-            if ($dia_semana != 0 && $dia_semana != 6 && !in_array($dia_fecha, $festivos_db)) {
-                $dias_habiles++;
+        // Validaciones básicas
+        if (empty($fecha_inicio) || empty($fecha_fin)) return ['dias_habiles' => 0, 'dias_naturales' => 0];
+        if ($fecha_inicio > $fecha_fin) return ['dias_habiles' => 0, 'dias_naturales' => 0];
+
+        try {
+            $conectar = Conexion::conectar();
+            $festivos_db = [];
+
+            // Intentamos obtener festivos, si la tabla no existe, usamos array vacío
+            try {
+                $sql_festivos = "SELECT dia_fecha FROM LS_DIAS_FESTIVOS";
+                $stmt_festivos = $conectar->query($sql_festivos);
+                if ($stmt_festivos) {
+                    $festivos_db = $stmt_festivos->fetchAll(PDO::FETCH_COLUMN, 0);
+                }
+            } catch (Exception $e) {
+                // Si la tabla no existe, ignoramos los festivos por ahora
+                $festivos_db = [];
             }
+
+            $inicio = new DateTime($fecha_inicio);
+            $fin = new DateTime($fecha_fin);
+            $fin->modify('+1 day'); // Incluir el día final
+
+            $periodo = new DatePeriod($inicio, new DateInterval('P1D'), $fin);
+
+            foreach ($periodo as $dia) {
+                $dias_naturales++;
+                $dia_semana = $dia->format('N'); // 1 (Lunes) a 7 (Domingo)
+                $fecha_actual = $dia->format('Y-m-d');
+
+                // Si es Lunes(1) a Viernes(5) Y no es festivo
+                if ($dia_semana >= 1 && $dia_semana <= 5 && !in_array($fecha_actual, $festivos_db)) {
+                    $dias_habiles++;
+                }
+            }
+        } catch (Exception $e) {
+            return ['dias_habiles' => 0, 'dias_naturales' => 0];
         }
 
         return [
-            'dias_habiles' => (float)number_format($dias_habiles, 2, '.', ''),
+            'dias_habiles' => number_format($dias_habiles, 2, '.', ''),
             'dias_naturales' => $dias_naturales
         ];
     }
-
     /**
      * Guarda una nueva solicitud de vacaciones en estado PENDIENTE.
      * @param array $datos_solicitud Todos los datos de la solicitud.
