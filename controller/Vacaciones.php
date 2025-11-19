@@ -53,6 +53,7 @@ switch ($op) {
     // CASE 2: GUARDAR NUEVA SOLICITUD
     // =================================================================
     case 'guardar_solicitud':
+<<<<<<< HEAD
         $usu_id = $_SESSION['usu_id'];
         $fecha_inicio = $_POST['vac_fecha_inicio'];
         $fecha_fin = $_POST['vac_fecha_fin'];
@@ -68,6 +69,44 @@ switch ($op) {
             echo json_encode(['status' => 'error', 'message' => $respuesta['message']]);
         }
         break;
+=======
+    $usu_id = $_SESSION['usu_id']; 
+
+    // 1. Obtener el ID del jefe
+    $usu_jefe_id = $vacaciones->get_jefe_inmediato($usu_id);
+    if ($usu_jefe_id === 0) {
+        echo json_encode(['status' => 'error', 'message' => 'No se encontró un jefe inmediato asociado.']);
+        exit();
+    }
+    
+    // 2. Preparar los datos
+    $datos_solicitud = [
+        'usu_id' => $usu_id,
+        'usu_jefe_id' => $usu_jefe_id,
+        'vac_fecha_inicio' => $_POST['vac_fecha_inicio'],
+        'vac_fecha_fin' => $_POST['vac_fecha_fin'],
+        // Se asume que estos campos vienen calculados y validados desde JS
+        'vac_dias_habiles' => (float)$_POST['vac_dias_habiles'],
+        'vac_dias_naturales' => (int)$_POST['vac_dias_naturales'], 
+        'vac_observaciones' => $_POST['vac_observaciones'] ?? ''
+    ];
+
+    // 3. Validar si hay días solicitados
+    if ($datos_solicitud['vac_dias_habiles'] <= 0) {
+        echo json_encode(['status' => 'error', 'message' => 'El periodo no contiene días hábiles válidos para solicitar.']);
+        exit();
+    }
+
+    // 4. Guardar la solicitud
+    $resultado = $vacaciones->guardar_solicitud($datos_solicitud);
+    
+    if ($resultado === "ok") {
+        echo json_encode(['status' => 'ok', 'message' => 'Solicitud enviada correctamente.']);
+    } else {
+        echo json_encode(['status' => 'error', 'message' => $resultado]);
+    }
+    break;
+>>>>>>> fa224ba21b5c5d01405e4102bb20c3f3077f62ac
 
     case 'get_saldo':
         if (!isset($_SESSION['usu_id'])) {
@@ -97,6 +136,7 @@ switch ($op) {
     echo json_encode($resultado);
     break;
 
+<<<<<<< HEAD
     case 'listar_solicitudes_jefe':
         $jefe_id = $_SESSION['usu_id'];
         $datos = $vacaciones->listar_solicitudes_por_jefe($jefe_id);
@@ -185,16 +225,24 @@ switch ($op) {
         echo json_encode(['status' => 'ok', 'url' => '../AprobacionSolicitud/FormatoVacaciones.php']);
         break;
 
+=======
+>>>>>>> fa224ba21b5c5d01405e4102bb20c3f3077f62ac
     // =================================================================
     // CASE 3: LISTAR SOLICITUDES PARA DATATABLES
     // =================================================================
     case 'listar_mis_solicitudes':
+<<<<<<< HEAD
         $usu_id = $_SESSION['usu_id'];
+=======
+        
+        $usu_id = $_SESSION['usu_id']; // Usamos el ID de la sesión
+>>>>>>> fa224ba21b5c5d01405e4102bb20c3f3077f62ac
         $datos = $vacaciones->listar_mis_solicitudes($usu_id);
         $data = Array();
 
         foreach ($datos as $row) {
             $sub_array = array();
+<<<<<<< HEAD
             
             // 1. ID Solicitud
             $sub_array[] = $row["vac_id"];
@@ -245,6 +293,37 @@ switch ($op) {
             $data[] = $sub_array;
         }
 
+=======
+            $sub_array[] = $row["vac_id"];
+            // Formateo de fechas a d/m/Y
+            $sub_array[] = date("d/m/Y", strtotime($row["vac_fecha_inicio"]));
+            $sub_array[] = date("d/m/Y", strtotime($row["vac_fecha_fin"]));
+            $sub_array[] = $row["vac_dias_habiles"];
+            
+            // Lógica para mostrar el estado con etiquetas de color
+            switch ($row["vac_estado"]) {
+                case 'Aprobada':
+                    $sub_array[] = '<span class="label label-success">Aprobada</span>';
+                    $acciones = '<button type="button" onClick="verDetalle('.$row["vac_id"].');" class="btn btn-info btn-sm">Ver</button>';
+                    break;
+                case 'Rechazada':
+                    $sub_array[] = '<span class="label label-danger">Rechazada</span>';
+                    $acciones = '<button type="button" onClick="verDetalle('.$row["vac_id"].');" class="btn btn-info btn-sm">Ver</button>';
+                    break;
+                case 'Pendiente':
+                default:
+                    $sub_array[] = '<span class="label label-warning">Pendiente</span>';
+                    // Botón para cancelar (requiere función JS cancelarSolicitud)
+                    $acciones = '<button type="button" onClick="cancelarSolicitud('.$row["vac_id"].');" class="btn btn-danger btn-sm">Cancelar</button>';
+                    break;
+            }
+            
+            $sub_array[] = $acciones;
+            $data[] = $sub_array;
+        }
+
+        // Estructura de respuesta requerida por DataTables
+>>>>>>> fa224ba21b5c5d01405e4102bb20c3f3077f62ac
         $results = array(
             "sEcho" => 1,
             "iTotalRecords" => count($data),
@@ -253,6 +332,7 @@ switch ($op) {
         );
         echo json_encode($results);
         break;
+<<<<<<< HEAD
 
 
         case 'gestion_solicitud':
@@ -264,6 +344,8 @@ switch ($op) {
         $respuesta = $vacaciones->gestionar_solicitud($vac_id, $accion, $aprobador_id);
         echo json_encode($respuesta);
         break;
+=======
+>>>>>>> fa224ba21b5c5d01405e4102bb20c3f3077f62ac
         
     // =================================================================
     // OTROS CASES (Aquí irían aprobar_solicitud, rechazar_solicitud, etc.)

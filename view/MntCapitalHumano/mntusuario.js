@@ -1,26 +1,35 @@
 // ARCHIVO: view/MntCapitalHumano/mntusuario.js
 
 var tablaUsuarios;
+<<<<<<< HEAD
 var tablaFirmas;
+=======
+>>>>>>> fa224ba21b5c5d01405e4102bb20c3f3077f62ac
 // Ruta del controlador de usuarios
 var ruta_controlador = '../../controller/MntUsuario.php?op='; 
 
 $(document).ready(function() {
     listarUsuarios();
     cargarSelectsIniciales();
+<<<<<<< HEAD
     listarFirmas();
+=======
+>>>>>>> fa224ba21b5c5d01405e4102bb20c3f3077f62ac
 
     // 1. Manejar el evento submit del formulario de Usuarios
     $('#usuario_form').on('submit', function(e){
         guardarUsuario(e);
     });
 
+<<<<<<< HEAD
     // 2. Manejar el evento submit del formulario de Firmas
     $('#firma_form').on('submit', function(e) {
         e.preventDefault();
         guardarFirma(e);
     });
 
+=======
+>>>>>>> fa224ba21b5c5d01405e4102bb20c3f3077f62ac
     // 2. Función para ABRIR MODAL de nuevo usuario (Configuración de INSERT)
     $('#btnNuevoUsuario').click(function(){
         
@@ -303,6 +312,7 @@ function cargarSelectJefes(jefe_id_seleccionado = '') {
             $('#jefe_id').val(jefe_id_seleccionado).trigger('change');
         }
     });
+<<<<<<< HEAD
 }
 
 /* *************************************************************** */
@@ -487,4 +497,6 @@ function guardarFirma(e) {
             console.error(jqXHR.responseText);
         }
     });
+=======
+>>>>>>> fa224ba21b5c5d01405e4102bb20c3f3077f62ac
 }

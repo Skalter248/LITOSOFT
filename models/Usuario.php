@@ -163,6 +163,7 @@
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+<<<<<<< HEAD
     /**
      * Inserta o actualiza la ruta de la firma para un usuario.
      * @param int $usu_id ID del usuario.
@@ -253,6 +254,8 @@
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
+=======
+>>>>>>> fa224ba21b5c5d01405e4102bb20c3f3077f62ac
     }
 
 ?>

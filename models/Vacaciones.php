@@ -339,6 +339,7 @@ class Vacaciones {
         }
     }
 
+<<<<<<< HEAD
     public function get_solicitud_para_impresion($vac_id) {
         $conectar = Conexion::conectar();
         
@@ -509,12 +510,15 @@ class Vacaciones {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+=======
+>>>>>>> fa224ba21b5c5d01405e4102bb20c3f3077f62ac
     /**
      * Calcula los días hábiles (lunes a viernes) entre dos fechas (inclusivo).
      */
 
     public function listar_mis_solicitudes($usu_id) {
         $conectar = Conexion::conectar();
+<<<<<<< HEAD
         $sql = "SELECT 
                     s.vac_id, 
                     s.vac_fecha_inicio, 
@@ -529,6 +533,13 @@ class Vacaciones {
                 LEFT JOIN ls_usuarios u ON s.usu_aprobador_id = u.usu_id
                 WHERE s.usu_id = :usu_id
                 ORDER BY s.vac_id DESC";
+=======
+        
+        $sql = "SELECT vac_id, vac_fecha_inicio, vac_fecha_fin, vac_dias_habiles, vac_estado
+                FROM LS_VACACIONES_SOLICITUDES
+                WHERE usu_id = :usu_id
+                ORDER BY vac_id DESC";
+>>>>>>> fa224ba21b5c5d01405e4102bb20c3f3077f62ac
                 
         $stmt = $conectar->prepare($sql);
         $stmt->bindValue(':usu_id', $usu_id, PDO::PARAM_INT);
@@ -685,6 +696,7 @@ class Vacaciones {
      * @param array $datos_solicitud Todos los datos de la solicitud.
      * @return string 'ok' si es exitoso, o mensaje de error.
      */
+<<<<<<< HEAD
     public function guardar_solicitud($usu_id, $fecha_inicio, $fecha_fin, $dias_habiles, $observaciones) {
         $conectar = Conexion::conectar();
         
@@ -728,6 +740,30 @@ class Vacaciones {
             }
         } catch (PDOException $e) {
             return ['status' => false, 'message' => $e->getMessage()];
+=======
+    public function guardar_solicitud($datos_solicitud) {
+        $conectar = Conexion::conectar();
+        
+        $sql = "INSERT INTO LS_VACACIONES_SOLICITUDES 
+                (usu_id, usu_jefe_id, vac_fecha_inicio, vac_fecha_fin, vac_dias_naturales, vac_dias_habiles, vac_observaciones, vac_estado, vac_fecha_solicitud) 
+                VALUES 
+                (:usu_id, :jefe_id, :inicio, :fin, :naturales, :habiles, :obs, 'PENDIENTE', NOW())";
+                
+        $stmt = $conectar->prepare($sql);
+        
+        $stmt->bindValue(':usu_id', $datos_solicitud['usu_id'], PDO::PARAM_INT);
+        $stmt->bindValue(':jefe_id', $datos_solicitud['usu_jefe_id'], PDO::PARAM_INT);
+        $stmt->bindValue(':inicio', $datos_solicitud['vac_fecha_inicio'], PDO::PARAM_STR);
+        $stmt->bindValue(':fin', $datos_solicitud['vac_fecha_fin'], PDO::PARAM_STR);
+        $stmt->bindValue(':naturales', $datos_solicitud['vac_dias_naturales'], PDO::PARAM_INT);
+        $stmt->bindValue(':habiles', $datos_solicitud['vac_dias_habiles'], PDO::PARAM_STR);
+        $stmt->bindValue(':obs', $datos_solicitud['vac_observaciones'], PDO::PARAM_STR);
+
+        try {
+            return $stmt->execute() ? "ok" : "Error al ejecutar la inserción.";
+        } catch (PDOException $e) {
+            return "Error PDO al guardar la solicitud: " . $e->getMessage();
+>>>>>>> fa224ba21b5c5d01405e4102bb20c3f3077f62ac
         }
     }
 

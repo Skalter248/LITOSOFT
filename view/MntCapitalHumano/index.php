@@ -41,9 +41,12 @@
                         <li class="nav-item">
                             <a class="nav-link" href="#tab-usuarios" role="tab" data-toggle="tab">Usuarios</a>
                         </li>
+<<<<<<< HEAD
                         <li class="nav-item">
                             <a class="nav-link" href="#tab-firmas" role="tab" data-toggle="tab">Firmas Digitales</a>
                         </li>
+=======
+>>>>>>> fa224ba21b5c5d01405e4102bb20c3f3077f62ac
                     </ul>
                 </div><div class="tab-content">
                     
@@ -115,6 +118,7 @@
                             <tbody></tbody>
                         </table>
                     </div>
+<<<<<<< HEAD
                     <div class="tab-pane fade" id="tab-firmas" role="tabpanel">
                         <h3 class="card-title">Gestión de Firmas de Empleados</h3>
                         <p class="text-muted">Utilice esta tabla para cargar la firma digital (imagen PNG o JPG) de cada empleado. El archivo cargado reemplazará cualquier firma anterior.</p>
@@ -134,14 +138,19 @@
                         </div>
                     </div>
 
+=======
+>>>>>>> fa224ba21b5c5d01405e4102bb20c3f3077f62ac
                 </div>
             </section>
         </div>
     </div>
     <?php require_once("modalmantenimiento.php");?>
     <?php require_once("modalusuario.php");?>
+<<<<<<< HEAD
     <?php require_once("modalFirma.php");?>
 
+=======
+>>>>>>> fa224ba21b5c5d01405e4102bb20c3f3077f62ac
 
     <?php require_once("../MainJs/js.php");?>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>

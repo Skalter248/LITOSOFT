@@ -41,12 +41,15 @@ if (isset($_SESSION["rol_id"])) {
                             <span class="lbl">Solicitud de Vacaciones</span>
                         </a>
                     </li>
+<<<<<<< HEAD
                     <li class="blue-dirty">
                         <a href="..\AprobacionSolicitud\">
                             <span class="glyphicon glyphicon-ok"></span>
                             <span class="lbl">Aprobacion de Vacaciones</span>
                         </a>
                     </li>
+=======
+>>>>>>> fa224ba21b5c5d01405e4102bb20c3f3077f62ac
                 </ul>
             </nav>
         <?php

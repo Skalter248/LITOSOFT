@@ -213,6 +213,7 @@
                 }
             }
             break;
+<<<<<<< HEAD
 
 
         case 'mostrar':
@@ -348,5 +349,7 @@
         // Retornar la respuesta JSON
         echo json_encode($results);
         break;
+=======
+>>>>>>> fa224ba21b5c5d01405e4102bb20c3f3077f62ac
     }
 ?>
